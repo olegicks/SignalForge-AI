@@ -1,7 +1,7 @@
 import pytest
 import yaml
 
-from core.config import Settings
+from core.config import Settings, check_database_url
 
 
 def make_settings(**overrides: object) -> Settings:
@@ -36,11 +36,26 @@ def test_empty_env_values_fall_back_to_defaults(monkeypatch: pytest.MonkeyPatch)
 
 @pytest.mark.parametrize(
     "url",
-    ["postgresql://u:p@host/db?sslmode=require", "postgres://u:p@host/db?sslmode=require"],
+    [
+        "postgresql://u:p@host/db?sslmode=require",
+        "postgres://u:p@host/db?sslmode=require",
+        "  postgresql://u:p@host/db?sslmode=require\n",
+        "'postgresql://u:p@host/db?sslmode=require'",
+        "psql 'postgresql://u:p@host/db?sslmode=require'",
+        "DATABASE_URL=postgresql://u:p@host/db?sslmode=require",
+        'DATABASE_URL="postgresql://u:p@host/db?sslmode=require"',
+    ],
 )
 def test_plain_postgres_url_gets_psycopg_driver(url: str) -> None:
     settings = make_settings(database_url=url)
     assert settings.database_url == "postgresql+psycopg://u:p@host/db?sslmode=require"
+
+
+def test_check_database_url_error_hides_the_secret() -> None:
+    with pytest.raises(RuntimeError) as exc:
+        check_database_url("my-secret-password")
+    assert "my-secret-password" not in str(exc.value)
+    check_database_url("postgresql+psycopg://u:p@host/db")  # valid: no error
 
 
 def test_api_key_is_hidden_in_repr() -> None:

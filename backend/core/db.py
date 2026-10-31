@@ -6,12 +6,11 @@ from functools import lru_cache
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from core.config import get_settings
+from core.config import check_database_url, get_settings
 
 
 def make_engine(url: str) -> Engine:
-    if not url:
-        raise RuntimeError("DATABASE_URL is not set. Copy backend/.env.example to backend/.env.")
+    check_database_url(url)
     # pre_ping recovers from connections that Neon closed while idle.
     return create_engine(url, pool_pre_ping=True, pool_size=5, max_overflow=5)
 

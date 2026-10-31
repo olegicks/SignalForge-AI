@@ -25,7 +25,17 @@ class Settings(BaseSettings):
     @field_validator("database_url", "test_database_url")
     @classmethod
     def use_psycopg_driver(cls, url: str) -> str:
-        """Accept the plain postgres:// URL that Neon shows and select the psycopg v3 driver."""
+        """Accept the URL however it was copied from Neon and select the psycopg v3 driver.
+
+        Handles surrounding whitespace and quotes, Neon's `psql '...'` snippet, and a pasted
+        `DATABASE_URL=` prefix.
+        """
+        url = url.strip()
+        if url.startswith("psql "):
+            url = url[len("psql ") :].strip()
+        if "=" in url.split("://", 1)[0]:
+            url = url.split("=", 1)[1].strip()
+        url = url.strip("'\"").strip()
         for prefix in ("postgresql://", "postgres://"):
             if url.startswith(prefix):
                 return "postgresql+psycopg://" + url[len(prefix) :]
@@ -66,3 +76,15 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+def check_database_url(url: str) -> None:
+    """Fail with a readable message. Never includes the URL itself, which holds a password."""
+    if not url:
+        raise RuntimeError("DATABASE_URL is not set. Copy backend/.env.example to backend/.env.")
+    if not url.startswith("postgresql+psycopg://"):
+        raise RuntimeError(
+            "DATABASE_URL does not look like a Postgres URL "
+            f"(length {len(url)}, contains '://': {'://' in url}). It should start with "
+            "postgresql:// - paste only the connection string from Neon, nothing else."
+        )

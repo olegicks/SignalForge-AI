@@ -3,7 +3,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import create_engine, pool
 
-from core.config import get_settings
+from core.config import check_database_url, get_settings
 from core.models import Base
 
 config = context.config
@@ -17,8 +17,7 @@ target_metadata = Base.metadata
 def get_url() -> str:
     # Tests pass their own URL through config.attributes; everything else uses DATABASE_URL.
     url = config.attributes.get("database_url") or get_settings().database_url
-    if not url:
-        raise RuntimeError("DATABASE_URL is not set. Copy backend/.env.example to backend/.env.")
+    check_database_url(url)
     return url
 
 
