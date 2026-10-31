@@ -8,6 +8,11 @@ def clamp(value: float, low: float, high: float) -> float:
     return max(low, min(high, value))
 
 
+def resolve_source_ids(source_ids: list[int], news: list[NewsArticle]) -> list[str]:
+    """Map 1-based news item numbers to URLs, ignoring numbers that are out of range."""
+    return [news[i - 1].url for i in source_ids if 1 <= i <= len(news)]
+
+
 def validate_result(result: SignalResult, news: list[NewsArticle]) -> SignalResult:
     """Drop sources we did not provide, clamp numbers and trim lists."""
     allowed_urls = {article.url for article in news}

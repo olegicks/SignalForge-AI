@@ -261,7 +261,7 @@ def configure_logging(level: str) -> None:
         stream=sys.stderr,
     )
     # Quiet chatty libraries; httpx would log every request URL at INFO.
-    for name in ("yfinance", "httpx", "httpcore", "openai", "urllib3", "peewee"):
+    for name in ("yfinance", "httpx", "httpx2", "httpcore", "openai", "urllib3", "peewee"):
         logging.getLogger(name).setLevel(logging.WARNING)
     logging.getLogger("yfinance").setLevel(logging.CRITICAL)
     warnings.filterwarnings("ignore", module="yfinance")

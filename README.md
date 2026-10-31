@@ -60,7 +60,7 @@ flowchart LR
      - duplicates are removed by URL and by near-identical headline,
      - at most `MAX_NEWS_PER_TICKER` items are kept,
      - new items are saved to `news_items`.
-   - **Analyze**: the model gets the ticker, the price metrics we computed, and the news (title, summary truncated to about 300 characters, source, date, URL). It returns a structured signal. If there is no news at all, the LLM is skipped and a neutral, zero-confidence signal is saved. This is cheaper and more honest.
+   - **Analyze**: the model gets the ticker, the price metrics we computed, and the numbered news items (title, summary truncated to about 300 characters, source, date). It returns a structured signal and cites news by item number; the code maps the numbers back to URLs. That saves tokens, since news URLs are long, and the model can't invent a link. If there is no news at all, the LLM is skipped and a neutral, zero-confidence signal is saved. This is cheaper and more honest.
    - **Validate**:
      - any source URL that was not in the news we provided is dropped,
      - `score` is clamped to 1–10 and `confidence` to 0–1,
@@ -186,7 +186,7 @@ Backend (`backend/.env`, GitHub secrets/variables, Render):
 | `TEST_DATABASE_URL` | — | Disposable database for `pytest` (tests are skipped without it) |
 | `OPENAI_API_KEY` | — | OpenAI key (pipeline only, never needed by the API) |
 | `OPENAI_MODEL` | — | Model name; nothing is hardcoded |
-| `OPENAI_REASONING_EFFORT` | empty | Only for reasoning models, e.g. `minimal`, so reasoning doesn't eat the output cap |
+| `OPENAI_REASONING_EFFORT` | empty | Only for reasoning models, e.g. `none` for `gpt-6-luna`, so reasoning doesn't eat the output cap |
 | `OPENAI_PRICE_INPUT_PER_1M` | `0` | USD per 1M input tokens, for the cost estimate |
 | `OPENAI_PRICE_OUTPUT_PER_1M` | `0` | USD per 1M output tokens |
 | `MAX_NEWS_PER_TICKER` | `8` | News items sent to the model per ticker |

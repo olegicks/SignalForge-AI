@@ -20,7 +20,7 @@ prices or news.
 - risk: how uncertain or volatile the situation looks from the data (low, medium, high).
 - reasoning: 2-3 plain sentences.
 - key_factors: up to 4 short strings.
-- sources: only URLs copied exactly from the provided news list, for the items you relied on.
+- source_ids: the numbers of the news items you relied on (e.g. [1, 3]); empty if none.
 """
 
 
@@ -49,5 +49,6 @@ def build_user_prompt(ticker: str, metrics: PriceMetrics, news: list[NewsArticle
         )
         if article.summary:
             lines.append(f"   Summary: {truncate(article.summary)}")
-        lines.append(f"   URL: {article.url}")
+    # URLs are left out on purpose: the model cites items by number and the code maps the
+    # numbers back to URLs, which saves tokens and makes invented links impossible.
     return "\n".join(lines)

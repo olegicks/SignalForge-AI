@@ -2,13 +2,14 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
+from pydantic import ValidationError
 
 from core.config import Settings
 from pipeline.analyzer import AnalyzerError, get_analyzer
 from pipeline.analyzer.base import LLMSignal
 from pipeline.analyzer.openai_analyzer import OpenAIAnalyzer
 from pipeline.analyzer.prompts import build_user_prompt, truncate
-from pipeline.analyzer.validation import validate_result
+from pipeline.analyzer.validation import resolve_source_ids, validate_result
 from tests.factories import make_article, make_metrics, make_result
 
 
@@ -35,17 +36,22 @@ def llm_signal(**overrides: object) -> LLMSignal:
         "confidence": 1.7,
         "reasoning": "  Good news.  ",
         "key_factors": ["a", " ", "b", "c", "d", "e"],
-        "sources": [
-            "https://news.example.com/1",
-            "https://made-up.example.org/x",
-            "https://news.example.com/1",
-        ],
+        # 1 is valid, 7 and 0 are out of range, the repeated 1 is a duplicate.
+        "source_ids": [1, 7, 0, 1],
     }
     values.update(overrides)
     return LLMSignal(**values)
 
 
 # --- validation -------------------------------------------------------------
+
+
+def test_resolve_source_ids_maps_numbers_to_urls() -> None:
+    news = [make_article(1), make_article(2)]
+    assert resolve_source_ids([2, 3, -1, 1], news) == [
+        "https://news.example.com/2",
+        "https://news.example.com/1",
+    ]
 
 
 def test_validate_drops_unknown_sources_and_duplicates() -> None:
@@ -86,7 +92,8 @@ def test_prompt_contains_data_and_truncated_summaries() -> None:
     assert "Ticker: AAPL" in prompt
     assert "last close 100.00" in prompt
     assert "30d n/a" in prompt
-    assert "https://news.example.com/1" in prompt
+    assert "1. [" in prompt
+    assert "https://news.example.com/1" not in prompt
     summary_line = next(line for line in prompt.splitlines() if "Summary:" in line)
     assert len(summary_line) < 320
 
@@ -127,6 +134,18 @@ def test_openai_analyzer_passes_reasoning_effort_when_set() -> None:
     analyzer = OpenAIAnalyzer(settings(openai_reasoning_effort="minimal"), client=client)
     analyzer.analyze("AAPL", make_metrics(), [make_article(1)])
     assert client.responses.parse.call_args.kwargs["reasoning"] == {"effort": "minimal"}
+
+
+def test_openai_analyzer_wraps_truncated_json() -> None:
+    try:
+        LLMSignal.model_validate_json('{"signal":"neutral","reasoning":"cut o')
+    except ValidationError as exc:
+        truncated = exc
+    client = MagicMock()
+    client.responses.parse.side_effect = truncated
+    analyzer = OpenAIAnalyzer(settings(), client=client)
+    with pytest.raises(AnalyzerError, match="LLM_MAX_OUTPUT_TOKENS"):
+        analyzer.analyze("AAPL", make_metrics(), [make_article(1)])
 
 
 def test_openai_analyzer_raises_on_missing_output() -> None:

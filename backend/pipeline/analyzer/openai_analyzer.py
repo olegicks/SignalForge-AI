@@ -4,11 +4,12 @@ import logging
 from typing import Any
 
 from openai import OpenAI
+from pydantic import ValidationError
 
 from core.config import Settings
 from pipeline.analyzer.base import Analyzer, AnalyzerError, LLMSignal, SignalResult
 from pipeline.analyzer.prompts import SYSTEM_PROMPT, build_user_prompt
-from pipeline.analyzer.validation import validate_result
+from pipeline.analyzer.validation import resolve_source_ids, validate_result
 from pipeline.collectors.news import NewsArticle
 from pipeline.collectors.prices import PriceMetrics
 
@@ -40,15 +41,22 @@ class OpenAIAnalyzer(Analyzer):
         if self._reasoning_effort:
             extra["reasoning"] = {"effort": self._reasoning_effort}
 
-        response = self._client.responses.parse(
-            model=self._model,
-            instructions=SYSTEM_PROMPT,
-            input=build_user_prompt(ticker, metrics, news),
-            text_format=LLMSignal,
-            max_output_tokens=self._max_output_tokens,
-            store=False,
-            **extra,
-        )
+        try:
+            response = self._client.responses.parse(
+                model=self._model,
+                instructions=SYSTEM_PROMPT,
+                input=build_user_prompt(ticker, metrics, news),
+                text_format=LLMSignal,
+                max_output_tokens=self._max_output_tokens,
+                store=False,
+                **extra,
+            )
+        except ValidationError as exc:
+            # The SDK parses before returning; a reply cut off at the token cap lands here.
+            raise AnalyzerError(
+                f"Unparseable output for {ticker} (likely cut off at "
+                f"LLM_MAX_OUTPUT_TOKENS={self._max_output_tokens}): {exc.errors()[0]['msg']}"
+            ) from exc
 
         usage = response.usage
         input_tokens = usage.input_tokens if usage else 0
@@ -62,7 +70,8 @@ class OpenAIAnalyzer(Analyzer):
             )
 
         result = SignalResult(
-            **parsed.model_dump(),
+            **parsed.model_dump(exclude={"source_ids"}),
+            sources=resolve_source_ids(parsed.source_ids, news),
             model=self._model,
             input_tokens=input_tokens,
             output_tokens=output_tokens,

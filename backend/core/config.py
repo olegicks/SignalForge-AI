@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     analyzer_provider: str = "openai"
     openai_api_key: SecretStr = SecretStr("")
     openai_model: str = ""
-    # Only for reasoning models (e.g. "minimal" or "low"); leave empty for other models.
+    # Only for reasoning models (e.g. "none" or "low"); leave empty for other models.
     openai_reasoning_effort: str = ""
     llm_max_output_tokens: int = Field(default=400, gt=0)
     openai_price_input_per_1m: float = Field(default=0.0, ge=0)
