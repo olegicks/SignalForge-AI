@@ -183,6 +183,8 @@ def test_tickers_subset(db_session: Session, settings: Settings, fake_sources: d
 
 
 def test_main_exits_nonzero_without_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("OPENAI_MODEL", "x")
-    monkeypatch.setenv("OPENAI_API_KEY", "")
+    # Built without the .env file so a developer's real key can never be picked up here.
+    monkeypatch.setattr(
+        pipeline_run, "get_settings", lambda: Settings(_env_file=None, openai_model="x")
+    )
     assert pipeline_run.main(["--dry-run"]) == 1

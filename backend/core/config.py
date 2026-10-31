@@ -3,7 +3,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
@@ -14,11 +14,22 @@ class Settings(BaseSettings):
         env_file=BACKEND_DIR / ".env",
         env_file_encoding="utf-8",
         extra="ignore",
+        # CI passes unset repository variables as empty strings; treat them as "use the default".
+        env_ignore_empty=True,
     )
 
     # Database
     database_url: str = ""
     test_database_url: str = ""
+
+    @field_validator("database_url", "test_database_url")
+    @classmethod
+    def use_psycopg_driver(cls, url: str) -> str:
+        """Accept the plain postgres:// URL that Neon shows and select the psycopg v3 driver."""
+        for prefix in ("postgresql://", "postgres://"):
+            if url.startswith(prefix):
+                return "postgresql+psycopg://" + url[len(prefix) :]
+        return url
 
     # LLM
     analyzer_provider: str = "openai"

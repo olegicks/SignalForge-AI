@@ -1,0 +1,18 @@
+# Render Blueprint: one free web service for the API. The database is Neon, not Render.
+services:
+  - type: web
+    name: signalforge-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    # "/" does not touch the database, so health checks don't keep Neon's compute awake.
+    healthCheckPath: /
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12"
+      - key: DATABASE_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false

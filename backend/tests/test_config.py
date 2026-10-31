@@ -26,6 +26,23 @@ def test_reads_environment_variables(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.max_news_per_ticker == 3
 
 
+def test_empty_env_values_fall_back_to_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OPENAI_PRICE_INPUT_PER_1M", "")
+    monkeypatch.setenv("MAX_NEWS_PER_TICKER", "")
+    settings = make_settings()
+    assert settings.openai_price_input_per_1m == 0.0
+    assert settings.max_news_per_ticker == 8
+
+
+@pytest.mark.parametrize(
+    "url",
+    ["postgresql://u:p@host/db?sslmode=require", "postgres://u:p@host/db?sslmode=require"],
+)
+def test_plain_postgres_url_gets_psycopg_driver(url: str) -> None:
+    settings = make_settings(database_url=url)
+    assert settings.database_url == "postgresql+psycopg://u:p@host/db?sslmode=require"
+
+
 def test_api_key_is_hidden_in_repr() -> None:
     settings = make_settings(openai_api_key="sk-secret-value")
     assert "sk-secret-value" not in repr(settings)
