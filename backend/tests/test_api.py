@@ -149,6 +149,24 @@ def test_track_record(client: TestClient) -> None:
     assert [s["ticker"] for s in body["recent_evaluated"]] == ["AAPL", "MSFT"]
 
 
+def test_server_error_keeps_cors_headers() -> None:
+    """A crash (e.g. missing tables) must reach the browser as a 500, not a CORS failure."""
+
+    def broken_session() -> Iterator[Session]:
+        raise RuntimeError("relation pipeline_runs does not exist")
+        yield  # pragma: no cover
+
+    app.dependency_overrides[get_session] = broken_session
+    try:
+        response = TestClient(app, raise_server_exceptions=False).get(
+            "/runs", headers={"Origin": "http://localhost:5173"}
+        )
+    finally:
+        app.dependency_overrides.clear()
+    assert response.status_code == 500
+    assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
+
+
 def test_api_is_read_only(client: TestClient) -> None:
     assert client.post("/signals").status_code == 405
     assert client.get("/openapi.json").status_code == 200

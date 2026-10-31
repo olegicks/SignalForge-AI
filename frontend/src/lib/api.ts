@@ -94,7 +94,7 @@ export class ApiError extends Error {
 }
 
 // A sleeping Render service can take about a minute to boot, so keep retrying for a while.
-const WAKE_DEADLINE_MS = 120_000
+const WAKE_DEADLINE_MS = 90_000
 const REQUEST_TIMEOUT_MS = 25_000
 const WAKING_STATUSES = new Set([502, 503, 504])
 
@@ -124,11 +124,19 @@ export async function apiGet<T>(
       const response = await fetchWithTimeout(`${API_URL}${path}`, signal)
       if (response.ok) return (await response.json()) as T
       if (!WAKING_STATUSES.has(response.status) || Date.now() > deadline) {
-        throw new ApiError(response.status, `Request failed (${response.status})`)
+        const hint = response.status >= 500 ? ' The server hit an error; see the API logs.' : ''
+        throw new ApiError(response.status, `Request failed (${response.status}).${hint}`)
       }
     } catch (error) {
       if (signal?.aborted || error instanceof ApiError) throw error
-      if (Date.now() > deadline) throw new Error('The server did not respond. Please try again.')
+      if (Date.now() > deadline) {
+        // A CORS rejection looks exactly like a network error to the browser, so name both.
+        throw new Error(
+          `Could not reach the API at ${API_URL}. If this keeps happening, check that ` +
+            'VITE_API_URL points to the API and that CORS_ORIGINS on the API includes ' +
+            `${window.location.origin}.`,
+        )
+      }
     }
     // Network error, timeout or gateway error: the server is most likely still waking up.
     onWaking?.()
