@@ -29,10 +29,10 @@ jobs:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
-      # Optional, non-secret repository variables (Settings -> Secrets and variables -> Variables).
-      OPENAI_PRICE_INPUT_PER_1M: ${{ vars.OPENAI_PRICE_INPUT_PER_1M }}
-      OPENAI_PRICE_OUTPUT_PER_1M: ${{ vars.OPENAI_PRICE_OUTPUT_PER_1M }}
-      OPENAI_REASONING_EFFORT: ${{ vars.OPENAI_REASONING_EFFORT }}
+      # Optional and not sensitive: read from repository Variables, or from Secrets if stored there.
+      OPENAI_PRICE_INPUT_PER_1M: ${{ vars.OPENAI_PRICE_INPUT_PER_1M || secrets.OPENAI_PRICE_INPUT_PER_1M }}
+      OPENAI_PRICE_OUTPUT_PER_1M: ${{ vars.OPENAI_PRICE_OUTPUT_PER_1M || secrets.OPENAI_PRICE_OUTPUT_PER_1M }}
+      OPENAI_REASONING_EFFORT: ${{ vars.OPENAI_REASONING_EFFORT || secrets.OPENAI_REASONING_EFFORT }}
     steps:
       - uses: actions/checkout@v5
 
