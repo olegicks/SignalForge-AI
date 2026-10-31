@@ -4,6 +4,7 @@ import { RiskTag, ScoreMeter, SignalBadge, StatusBadge } from '../components/Bad
 import type { LatestSignals, Run } from '../lib/api'
 import { dateTime, rate, relativeTime, shortDate, usd } from '../lib/format'
 import { useApi } from '../lib/useApi'
+import { useRowLink } from '../lib/useRowLink'
 
 function LastRunCard({ runs }: { runs: Run[] }) {
   const run = runs[0]
@@ -47,6 +48,7 @@ function LastRunCard({ runs }: { runs: Run[] }) {
 }
 
 function SignalsTable({ latest }: { latest: LatestSignals }) {
+  const rowLink = useRowLink()
   if (latest.signals.length === 0) {
     return <p className="muted">No signals yet.</p>
   }
@@ -66,11 +68,12 @@ function SignalsTable({ latest }: { latest: LatestSignals }) {
               <th>Risk</th>
               <th className="num">Confidence</th>
               <th className="col-wide">Reasoning</th>
+              <th aria-hidden="true" />
             </tr>
           </thead>
           <tbody>
             {latest.signals.map((s) => (
-              <tr key={s.id}>
+              <tr key={s.id} {...rowLink(`/tickers/${s.ticker}`)} title={`Open ${s.ticker} details`}>
                 <td>
                   <Link to={`/tickers/${s.ticker}`} className="ticker-link">
                     {s.ticker}
@@ -87,9 +90,10 @@ function SignalsTable({ latest }: { latest: LatestSignals }) {
                 </td>
                 <td className="num">{rate(s.confidence)}</td>
                 <td className="col-wide">
-                  <span className="clamp-2" title={s.reasoning}>
-                    {s.reasoning}
-                  </span>
+                  <span className="clamp-2">{s.reasoning}</span>
+                </td>
+                <td className="row-chevron" aria-hidden="true">
+                  ›
                 </td>
               </tr>
             ))}

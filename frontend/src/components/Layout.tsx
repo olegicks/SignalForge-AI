@@ -48,7 +48,7 @@ export function Layout() {
       <header className="site-header">
         <div className="container header-inner">
           <NavLink to="/" className="brand">
-            <img src="/favicon.svg" alt="" width={24} height={24} />
+            <img src="/logo.svg" alt="" width={28} height={28} />
             SignalForge <span className="brand-ai">AI</span>
           </NavLink>
           <nav className="nav" aria-label="Main">

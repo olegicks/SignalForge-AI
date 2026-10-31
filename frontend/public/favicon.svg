@@ -1,1 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#2a78d6"/><path d="M6 21l6-7 5 4 9-10" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="SignalForge AI">
+  <defs>
+    <linearGradient id="sf-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2a78d6"/>
+      <stop offset="1" stop-color="#6250d6"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="url(#sf-bg)"/>
+  <!-- anvil: the "forge" -->
+  <path d="M17 49h30" stroke="#fff" stroke-width="5" stroke-linecap="round" opacity=".5"/>
+  <!-- signal pulse rising out of it -->
+  <path d="M11 37h9l5-12 7 19 6-13h6" fill="none" stroke="#fff" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- spark -->
+  <path d="M50 11l2.6 6.4L59 20l-6.4 2.6L50 29l-2.6-6.4L41 20l6.4-2.6z" fill="#ffc94d"/>
+</svg>

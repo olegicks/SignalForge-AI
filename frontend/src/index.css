@@ -333,6 +333,21 @@ h1 {
 .table tbody tr:hover {
   background: var(--surface-2);
 }
+.row-link {
+  cursor: pointer;
+}
+.row-link:hover .ticker-link {
+  text-decoration: underline;
+}
+.row-chevron {
+  width: 1%;
+  color: var(--text-3);
+  font-size: 1.2rem;
+  line-height: 1;
+}
+.row-link:hover .row-chevron {
+  color: var(--accent);
+}
 .table .num {
   text-align: right;
   font-variant-numeric: tabular-nums;

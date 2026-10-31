@@ -4,6 +4,7 @@ import { HitMark, SignalBadge } from '../components/Badges'
 import type { HorizonStats, SignalType, TrackRecord as TrackRecordData } from '../lib/api'
 import { isHit, pct, price, rate, shortDate } from '../lib/format'
 import { useApi } from '../lib/useApi'
+import { useRowLink } from '../lib/useRowLink'
 
 const SIGNAL_TYPES: SignalType[] = ['bullish', 'bearish', 'neutral']
 
@@ -100,6 +101,7 @@ function ByConfidence({ horizons }: { horizons: HorizonStats[] }) {
 }
 
 function Content({ data }: { data: TrackRecordData }) {
+  const rowLink = useRowLink()
   return (
     <div className="stack">
       <div className="page-head">
@@ -141,7 +143,7 @@ function Content({ data }: { data: TrackRecordData }) {
               </thead>
               <tbody>
                 {data.recent_evaluated.map((s) => (
-                  <tr key={s.id}>
+                  <tr key={s.id} {...rowLink(`/tickers/${s.ticker}`)} title={`Open ${s.ticker} details`}>
                     <td>{shortDate(s.as_of_date)}</td>
                     <td>
                       <Link to={`/tickers/${s.ticker}`} className="ticker-link">
