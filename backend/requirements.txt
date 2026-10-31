@@ -1,0 +1,12 @@
+fastapi==0.162.0
+uvicorn[standard]==0.54.0
+sqlalchemy==2.1.6
+alembic==1.20.1
+psycopg[binary]==3.3.6
+pydantic==2.14.2
+pydantic-settings==2.16.2
+openai==3.42.0
+yfinance==1.7.0
+feedparser==6.0.14
+pyyaml==6.0.3
+tenacity==9.2.1

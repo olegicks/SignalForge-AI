@@ -1,0 +1,33 @@
+# Fixed watchlist. `query` is used for the Google News RSS search.
+# European names use their US listings so everything is in USD on one calendar.
+tickers:
+  # US tech
+  - { ticker: AAPL, name: Apple, query: "Apple stock" }
+  - { ticker: MSFT, name: Microsoft, query: "Microsoft stock" }
+  - { ticker: NVDA, name: NVIDIA, query: "Nvidia stock" }
+  - { ticker: GOOGL, name: Alphabet, query: "Alphabet Google stock" }
+  - { ticker: AMZN, name: Amazon, query: "Amazon stock" }
+  - { ticker: META, name: Meta Platforms, query: "Meta Platforms stock" }
+  - { ticker: TSLA, name: Tesla, query: "Tesla stock" }
+  - { ticker: AMD, name: Advanced Micro Devices, query: "AMD stock" }
+  - { ticker: AVGO, name: Broadcom, query: "Broadcom stock" }
+  - { ticker: CRM, name: Salesforce, query: "Salesforce stock" }
+  - { ticker: ORCL, name: Oracle, query: "Oracle stock" }
+  - { ticker: NFLX, name: Netflix, query: "Netflix stock" }
+
+  # European large caps (US listings / ADRs)
+  - { ticker: ASML, name: ASML Holding, query: "ASML stock" }
+  - { ticker: SAP, name: SAP, query: "SAP SE stock" }
+  - { ticker: NVO, name: Novo Nordisk, query: "Novo Nordisk stock" }
+  - { ticker: AZN, name: AstraZeneca, query: "AstraZeneca stock" }
+  - { ticker: SHEL, name: Shell, query: "Shell plc stock" }
+  - { ticker: UL, name: Unilever, query: "Unilever stock" }
+  - { ticker: TTE, name: TotalEnergies, query: "TotalEnergies stock" }
+
+  # Non-tech US
+  - { ticker: JPM, name: JPMorgan Chase, query: "JPMorgan Chase stock" }
+  - { ticker: V, name: Visa, query: "Visa Inc stock" }
+  - { ticker: KO, name: Coca-Cola, query: "Coca-Cola stock" }
+  - { ticker: JNJ, name: Johnson & Johnson, query: "Johnson & Johnson stock" }
+  - { ticker: WMT, name: Walmart, query: "Walmart stock" }
+  - { ticker: CAT, name: Caterpillar, query: "Caterpillar stock" }
