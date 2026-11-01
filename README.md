@@ -48,11 +48,12 @@ It runs entirely on free tiers. A full daily run of 25 tickers costs about **$0.
 | 🧠 **Structured LLM output** | OpenAI Structured Outputs parsed straight into Pydantic models. No free-text parsing. |
 | 🔢 **The model never invents numbers** | Every price and percentage comes from yfinance. The model cites news by item number, so it can't make up a link either. |
 | 🛡️ **Validation after the model** | Out-of-range scores and confidences are clamped, unknown sources are dropped, lists are trimmed. |
-| 📈 **Honest track record** | Each signal is scored against the first real close 7 and 30 days later. Hit rates are broken down by confidence bucket. |
+| 📈 **Honest track record** | Each signal is scored against the first real close 7 and 30 days later, **and against SPY over the same days**. Hit rates are shown next to an "always bullish" baseline and broken down by confidence bucket. |
+| 🔁 **Day-over-day view** | The overview shows how each score moved since the previous signal (▲2, ▼1, "was bearish") and filters by signal type. |
 | ⏰ **Runs itself** | A GitHub Actions cron job every weekday at 06:00 UTC. It applies migrations, then runs the pipeline. |
 | 🧱 **Fails gracefully** | Each ticker is isolated. Network calls retry with backoff. A run ends as `success`, `partial` or `failed`. |
 | 💸 **Cost-aware** | Token usage and the estimated cost of every run are logged and shown on the dashboard. Tickers with no news skip the LLM. |
-| ✅ **Tested** | 88 pytest tests against a real Postgres, with yfinance, RSS and OpenAI mocked. CI runs ruff, pytest and the frontend build. |
+| ✅ **Tested** | 95 pytest tests against a real Postgres, with yfinance, RSS and OpenAI mocked. CI runs ruff, pytest and the frontend build. |
 
 ## How it works
 
@@ -77,7 +78,7 @@ flowchart LR
 2. **Load the watchlist.** `backend/watchlist.yaml` is read: US tech, European large caps through their US listings, and some non-tech names, capped by `MAX_TICKERS_PER_RUN`.
 3. **For each ticker:**
    - **Prices** (yfinance, retried with backoff): last close, change over 1, 5 and 30 days, and volume compared with the 20-day average. About 90 days of closes are kept for the chart.
-   - **News**: Yahoo Finance and Google News RSS are merged. Only items from the last `NEWS_LOOKBACK_HOURS` are kept, duplicates are removed by URL and by near-identical headline, and at most `MAX_NEWS_PER_TICKER` items remain.
+   - **News**: Yahoo Finance and Google News RSS are merged. Only items from the last `NEWS_LOOKBACK_HOURS` are kept (24 hours more on Mondays, so Friday's news isn't skipped over the weekend), duplicates are removed by URL and by near-identical headline, and at most `MAX_NEWS_PER_TICKER` items remain.
    - **Analyze**: the model gets the ticker, our price metrics and the **numbered** news items (title, summary cut to about 300 characters, source, date). It returns a structured signal and cites news by item number, which the code maps back to URLs. If there is no news at all, the LLM is skipped and a neutral, zero-confidence signal is saved.
    - **Validate**: `score` is clamped to 1–10 and `confidence` to 0–1, unknown sources are dropped, lists are trimmed.
    - **Save**: the signal is upserted on (`ticker`, `as_of_date`), so re-running on the same day never creates duplicates.
@@ -97,7 +98,11 @@ flowchart LR
 - Only closes from before the current day count, so a partial intraday price is never used.
 - Return = `close_N / price_at_signal − 1`.
 - A **bullish** signal *hits* if the return is above 0. A **bearish** signal hits if it is below 0. **Neutral** signals have no direction and are left out of hit rates, though their average return is still shown.
-- `/stats/track-record` returns hit rates for both horizons, counts, average return by signal type, and hit rates by confidence bucket (0–0.4, 0.4–0.7, 0.7–1.0). If confidence means anything, the higher buckets should hit more often.
+- **Benchmark.** SPY's return over the same window is stored next to every outcome: from its last close before the signal date, which matches `price_at_signal`, to the same target close. This gives:
+  - **excess return**, the stock's return minus SPY's;
+  - a **relative hit rate**: a bullish call hits if it beat SPY, a bearish call if it lagged SPY;
+  - an **"always bullish" baseline**: how often any stock simply went up. A hit rate means little unless it beats this.
+- `/stats/track-record` returns all of the above for both horizons, plus average return and excess return by signal type, and hit rates by confidence bucket (0–0.4, 0.4–0.7, 0.7–1.0). If confidence means anything, the higher buckets should hit more often.
 
 ## Tech stack
 
@@ -259,7 +264,7 @@ Frontend: `VITE_API_URL`, the public URL of the API.
 - More data sources: SEC filings, earnings calendars, analyst rating changes.
 - X/Twitter sentiment via Grok, as a second analyzer behind `ANALYZER_PROVIDER`.
 - Startup and small-cap screening beyond a fixed watchlist.
-- Benchmark-relative returns (vs. SPY) and per-sector breakdowns.
+- Per-sector breakdowns and more benchmarks (e.g. a sector ETF per ticker).
 
 ## Disclaimer
 

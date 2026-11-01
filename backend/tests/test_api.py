@@ -118,6 +118,26 @@ def test_latest_signals_sorted_by_score(client: TestClient) -> None:
     assert [s["ticker"] for s in by_conf["signals"]] == ["MSFT", "AAPL"]
 
 
+def test_latest_signals_include_previous_day(client: TestClient, seeded: Session) -> None:
+    run = seeded.query(PipelineRun).filter_by(status="partial").one()
+    seeded.add(make_signal(run, "MSFT", date(2026, 10, 27), signal="bearish", score=2))
+    seeded.flush()
+
+    by_ticker = {s["ticker"]: s for s in client.get("/signals/latest").json()["signals"]}
+    assert by_ticker["MSFT"]["previous_signal"] == "bearish"
+    assert by_ticker["MSFT"]["previous_score"] == 2
+    assert by_ticker["MSFT"]["previous_as_of_date"] == "2026-10-27"
+    # AAPL's earlier signal (Sep 1) is outside the look-back window.
+    assert by_ticker["AAPL"]["previous_signal"] is None
+
+
+def test_reads_are_cached_and_compressed(client: TestClient) -> None:
+    response = client.get("/stats/track-record", headers={"Accept-Encoding": "gzip"})
+    assert response.headers["cache-control"] == "public, max-age=300"
+    assert response.headers["content-encoding"] == "gzip"
+    assert "cache-control" not in client.get("/health").headers
+
+
 def test_signal_history_filters(client: TestClient) -> None:
     all_aapl = client.get("/signals", params={"ticker": "aapl"}).json()
     assert [s["as_of_date"] for s in all_aapl] == ["2026-10-30", "2026-09-01"]

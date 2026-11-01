@@ -71,11 +71,19 @@ def test_evaluate_signals_fills_outcomes(db_session: Session) -> None:
         return {
             "AAPL": series({"2026-10-06": 104.0, "2026-10-29": 120.0, "2026-10-30": 999.0}),
             "MSFT": series({"2026-10-29": 95.0}),
+            "SPY": series(
+                {"2026-09-28": 500.0, "2026-10-06": 510.0, "2026-10-21": 520.0, "2026-10-29": 525.0}
+            ),
         }
 
     summary = evaluate_signals(db_session, today=TODAY, download=fake_download, now=NOW)
 
-    assert calls == [(["AAPL", "MSFT"], date(2026, 10, 6), date(2026, 10, 29))]
+    # One batched download, starting a week early so the benchmark's base close exists.
+    assert calls == [(["AAPL", "MSFT", "SPY"], date(2026, 9, 22), date(2026, 10, 29))]
+    # Benchmark: base is SPY's last close before the signal date, end is the same target close.
+    assert old.benchmark_return_7d == pytest.approx(0.02)  # 500 -> 510
+    assert old.benchmark_return_30d == pytest.approx(0.05)  # 500 -> 525
+    assert week.benchmark_return_7d == pytest.approx(525 / 520 - 1, abs=1e-6)
     assert (summary.candidates, summary.filled_7d, summary.filled_30d) == (2, 2, 1)
     assert old.price_7d == Decimal("104") and old.return_7d == pytest.approx(0.04)
     # Today's (possibly intraday) close of 999 is ignored.
@@ -100,3 +108,17 @@ def test_evaluate_leaves_signal_pending_without_target_close(db_session: Session
     )
     assert summary.filled_7d == 0
     assert signal.evaluated_7d_at is None
+
+
+def test_missing_benchmark_does_not_block_outcome(db_session: Session) -> None:
+    signal = add_signal(db_session, PipelineRun(model="m"), "AAPL", date(2026, 10, 22))
+    db_session.flush()
+
+    evaluate_signals(
+        db_session,
+        today=TODAY,
+        download=lambda *_: {"AAPL": series({"2026-10-29": 110.0})},
+        now=NOW,
+    )
+    assert signal.return_7d == pytest.approx(0.1)
+    assert signal.benchmark_return_7d is None

@@ -47,13 +47,23 @@ class SignalOut(ORMModel):
     return_7d: float | None
     price_30d: float | None
     return_30d: float | None
+    benchmark_return_7d: float | None
+    benchmark_return_30d: float | None
     evaluated_7d_at: datetime | None
     evaluated_30d_at: datetime | None
 
 
+class LatestSignalOut(SignalOut):
+    """A latest signal plus the same ticker's previous one, to show day-over-day change."""
+
+    previous_signal: str | None = None
+    previous_score: int | None = None
+    previous_as_of_date: date | None = None
+
+
 class LatestSignalsOut(BaseModel):
     as_of_date: date | None
-    signals: list[SignalOut]
+    signals: list[LatestSignalOut]
 
 
 class NewsOut(ORMModel):
@@ -89,6 +99,7 @@ class ConfidenceBucketStats(BaseModel):
 class SignalTypeStats(BaseModel):
     count: int
     avg_return: float | None
+    avg_excess_return: float | None
 
 
 class HorizonStats(BaseModel):
@@ -97,6 +108,11 @@ class HorizonStats(BaseModel):
     directional: int
     hits: int
     hit_rate: float | None
+    base_rate_up: float | None
+    relative_directional: int
+    relative_hits: int
+    relative_hit_rate: float | None
+    avg_benchmark_return: float | None
     by_signal: dict[str, SignalTypeStats]
     by_confidence: list[ConfidenceBucketStats]
 

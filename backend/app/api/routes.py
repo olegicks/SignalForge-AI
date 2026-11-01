@@ -1,6 +1,6 @@
 """Read-only API routes. There are deliberately no write endpoints."""
 
-from datetime import date
+from datetime import date, timedelta
 from functools import lru_cache
 from typing import Annotated, Literal
 
@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.schemas import (
     HealthOut,
+    LatestSignalOut,
     LatestSignalsOut,
     NewsOut,
     PricePoint,
@@ -27,6 +28,9 @@ from pipeline.watchlist import load_watchlist
 router = APIRouter()
 
 SessionDep = Annotated[Session, Depends(get_session)]
+
+# How far back to look for a ticker's previous signal (covers weekends and short gaps).
+PREVIOUS_LOOKBACK_DAYS = 14
 
 LATEST_SORTS = {
     "score": (Signal.score.desc(), Signal.confidence.desc()),
@@ -78,7 +82,31 @@ def latest_signals(
         .order_by(*LATEST_SORTS[sort])
         .limit(limit)
     )
-    signals = [SignalOut.model_validate(s) for s in session.scalars(stmt)]
+    latest = list(session.scalars(stmt))
+
+    # Each ticker's most recent earlier signal, for the day-over-day change. One query:
+    # rows come newest first, so the first row seen per ticker is the previous signal.
+    previous: dict[str, Signal] = {}
+    earlier = session.scalars(
+        select(Signal)
+        .where(
+            Signal.ticker.in_([s.ticker for s in latest]),
+            Signal.as_of_date < latest_date,
+            Signal.as_of_date >= latest_date - timedelta(days=PREVIOUS_LOOKBACK_DAYS),
+        )
+        .order_by(Signal.as_of_date.desc())
+    )
+    for row in earlier:
+        previous.setdefault(row.ticker, row)
+
+    signals = []
+    for s in latest:
+        out = LatestSignalOut.model_validate(s)
+        if prev := previous.get(s.ticker):
+            out.previous_signal = prev.signal
+            out.previous_score = prev.score
+            out.previous_as_of_date = prev.as_of_date
+        signals.append(out)
     return LatestSignalsOut(as_of_date=latest_date, signals=signals)
 
 
@@ -139,11 +167,16 @@ def track_record(
     total = session.scalar(select(func.count()).select_from(Signal)) or 0
 
     horizons = []
-    for days, column in ((7, Signal.return_7d), (30, Signal.return_30d)):
+    for days, column, bench_column in (
+        (7, Signal.return_7d, Signal.benchmark_return_7d),
+        (30, Signal.return_30d, Signal.benchmark_return_30d),
+    ):
         rows = session.execute(
-            select(Signal.signal, Signal.confidence, column).where(column.is_not(None))
+            select(Signal.signal, Signal.confidence, column, bench_column).where(
+                column.is_not(None)
+            )
         ).all()
-        outcomes = [Outcome(signal=s, confidence=c, ret=r) for s, c, r in rows]
+        outcomes = [Outcome(signal=s, confidence=c, ret=r, benchmark=b) for s, c, r, b in rows]
         horizons.append(horizon_stats(days, outcomes))
 
     recent = session.scalars(

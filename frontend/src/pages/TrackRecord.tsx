@@ -20,6 +20,27 @@ function HitRateCard({ stats }: { stats: HorizonStats }) {
         {stats.evaluated > stats.directional &&
           ` · ${stats.evaluated - stats.directional} neutral excluded`}
       </p>
+      <dl className="mini-stats">
+        <div>
+          <dt title="Bullish calls that beat SPY and bearish calls that lagged it">vs SPY</dt>
+          <dd>
+            {rate(stats.relative_hit_rate)}
+            {stats.relative_directional > 0 && (
+              <span className="muted"> ({stats.relative_directional})</span>
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt title="How often a naive 'always bullish' guess would have hit">
+            Always-bullish baseline
+          </dt>
+          <dd>{rate(stats.base_rate_up)}</dd>
+        </div>
+        <div>
+          <dt>SPY avg return</dt>
+          <dd>{pct(stats.avg_benchmark_return, 2)}</dd>
+        </div>
+      </dl>
     </section>
   )
 }
@@ -28,16 +49,23 @@ function ReturnsBySignal({ horizons }: { horizons: HorizonStats[] }) {
   return (
     <section className="card">
       <h2 className="card-title">Average return by signal type</h2>
+      <p className="muted small">
+        "vs SPY" is the return above the market over the same days. A real edge shows up there,
+        not just in a rising market.
+      </p>
       <div className="table-wrap">
         <table className="table">
           <thead>
             <tr>
               <th>Signal</th>
-              {horizons.map((h) => (
-                <th key={h.horizon_days} className="num">
+              {horizons.map((h) => [
+                <th key={`${h.horizon_days}-ret`} className="num">
                   {h.horizon_days}d avg return (n)
-                </th>
-              ))}
+                </th>,
+                <th key={`${h.horizon_days}-ex`} className="num">
+                  {h.horizon_days}d vs SPY
+                </th>,
+              ])}
             </tr>
           </thead>
           <tbody>
@@ -46,12 +74,15 @@ function ReturnsBySignal({ horizons }: { horizons: HorizonStats[] }) {
                 <td>
                   <SignalBadge signal={type} />
                 </td>
-                {horizons.map((h) => (
-                  <td key={h.horizon_days} className="num">
+                {horizons.map((h) => [
+                  <td key={`${h.horizon_days}-ret`} className="num">
                     {pct(h.by_signal[type].avg_return, 2)}{' '}
                     <span className="muted">({h.by_signal[type].count})</span>
-                  </td>
-                ))}
+                  </td>,
+                  <td key={`${h.horizon_days}-ex`} className="num">
+                    {pct(h.by_signal[type].avg_excess_return, 2)}
+                  </td>,
+                ])}
               </tr>
             ))}
           </tbody>
@@ -136,6 +167,9 @@ function Content({ data }: { data: TrackRecordData }) {
                   <th className="num">Conf.</th>
                   <th className="num">Price</th>
                   <th className="num">7d</th>
+                  <th className="num" title="7-day return of SPY over the same days">
+                    SPY 7d
+                  </th>
                   <th>Hit</th>
                   <th className="num">30d</th>
                   <th>Hit</th>
@@ -156,6 +190,7 @@ function Content({ data }: { data: TrackRecordData }) {
                     <td className="num">{rate(s.confidence)}</td>
                     <td className="num">{price(s.price_at_signal)}</td>
                     <td className="num">{pct(s.return_7d)}</td>
+                    <td className="num muted">{pct(s.benchmark_return_7d)}</td>
                     <td>
                       <HitMark hit={isHit(s.signal, s.return_7d)} />
                     </td>

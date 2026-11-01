@@ -19,6 +19,12 @@ class Outcome:
     signal: str
     confidence: float
     ret: float
+    benchmark: float | None = None
+
+    @property
+    def excess(self) -> float | None:
+        """Return over the benchmark (SPY) for the same window."""
+        return None if self.benchmark is None else self.ret - self.benchmark
 
 
 def is_hit(signal: str, ret: float) -> bool | None:
@@ -33,16 +39,25 @@ def _rate(hits: int, total: int) -> float | None:
     return round(hits / total, 4) if total else None
 
 
+def _mean(values: list[float]) -> float | None:
+    return round(sum(values) / len(values), 6) if values else None
+
+
 def horizon_stats(horizon_days: int, outcomes: list[Outcome]) -> HorizonStats:
     directional = [o for o in outcomes if o.signal != "neutral"]
     hits = sum(1 for o in directional if is_hit(o.signal, o.ret))
 
+    # Relative hits: did a bullish call beat the market, or a bearish call lag it?
+    with_benchmark = [o for o in directional if o.excess is not None]
+    relative_hits = sum(1 for o in with_benchmark if is_hit(o.signal, o.excess or 0.0))
+
     by_signal: dict[str, SignalTypeStats] = {}
     for signal_type in SIGNAL_TYPES:
-        returns = [o.ret for o in outcomes if o.signal == signal_type]
+        of_type = [o for o in outcomes if o.signal == signal_type]
         by_signal[signal_type] = SignalTypeStats(
-            count=len(returns),
-            avg_return=round(sum(returns) / len(returns), 6) if returns else None,
+            count=len(of_type),
+            avg_return=_mean([o.ret for o in of_type]),
+            avg_excess_return=_mean([o.excess for o in of_type if o.excess is not None]),
         )
 
     by_confidence: list[ConfidenceBucketStats] = []
@@ -64,6 +79,12 @@ def horizon_stats(horizon_days: int, outcomes: list[Outcome]) -> HorizonStats:
         directional=len(directional),
         hits=hits,
         hit_rate=_rate(hits, len(directional)),
+        # A naive "always bullish" guess would hit this often; the model should beat it.
+        base_rate_up=_rate(sum(1 for o in outcomes if o.ret > 0), len(outcomes)),
+        relative_directional=len(with_benchmark),
+        relative_hits=relative_hits,
+        relative_hit_rate=_rate(relative_hits, len(with_benchmark)),
+        avg_benchmark_return=_mean([o.benchmark for o in outcomes if o.benchmark is not None]),
         by_signal=by_signal,
         by_confidence=by_confidence,
     )

@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 import pandas as pd
@@ -180,6 +180,18 @@ def test_tickers_subset(db_session: Session, settings: Settings, fake_sources: d
     analyzer = FakeAnalyzer()
     run_pipeline(Options(tickers=["MSFT"]), settings, db_session, analyzer, now=NOW)
     assert analyzer.calls == ["MSFT"]
+
+
+@pytest.mark.parametrize(
+    ("day", "expected"),
+    [
+        ("2026-11-02T06:00:00+00:00", 72),  # Monday: reaches back to Friday morning
+        ("2026-11-03T06:00:00+00:00", 48),  # Tuesday
+        ("2026-11-06T06:00:00+00:00", 48),  # Friday
+    ],
+)
+def test_news_lookback_widens_on_mondays(day: str, expected: int) -> None:
+    assert pipeline_run.news_lookback_hours(48, datetime.fromisoformat(day)) == expected
 
 
 def test_main_exits_nonzero_without_api_key(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -5,12 +5,15 @@ from collections.abc import Awaitable, Callable
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.routes import router
 from core.config import get_settings
 
 logger = logging.getLogger("app")
+
+CACHE_MAX_AGE_SECONDS = 300
 
 DESCRIPTION = (
     "Read-only API for SignalForge AI, a research prototype that turns daily news into "
@@ -33,11 +36,23 @@ async def catch_unhandled_errors(
         return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 
+async def add_cache_headers(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
+    """Data changes once a day, so let browsers and CDNs reuse successful reads briefly."""
+    response = await call_next(request)
+    if request.method == "GET" and response.status_code == 200 and request.url.path != "/health":
+        response.headers.setdefault("Cache-Control", f"public, max-age={CACHE_MAX_AGE_SECONDS}")
+    return response
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(title="SignalForge AI API", version="0.1.0", description=DESCRIPTION)
-    # Middleware added last runs first, so CORS wraps the error handler.
+    # Middleware added last runs first, so CORS wraps everything, including the error handler.
     app.middleware("http")(catch_unhandled_errors)
+    app.middleware("http")(add_cache_headers)
+    app.add_middleware(GZipMiddleware, minimum_size=1000)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,

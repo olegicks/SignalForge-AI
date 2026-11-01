@@ -38,11 +38,20 @@ export interface Signal {
   return_7d: number | null
   price_30d: number | null
   return_30d: number | null
+  benchmark_return_7d: number | null
+  benchmark_return_30d: number | null
+}
+
+/** A latest signal plus the same ticker's previous one, for the day-over-day change. */
+export interface LatestSignal extends Signal {
+  previous_signal: SignalType | null
+  previous_score: number | null
+  previous_as_of_date: string | null
 }
 
 export interface LatestSignals {
   as_of_date: string | null
-  signals: Signal[]
+  signals: LatestSignal[]
 }
 
 export interface NewsItem {
@@ -74,7 +83,17 @@ export interface HorizonStats {
   directional: number
   hits: number
   hit_rate: number | null
-  by_signal: Record<SignalType, { count: number; avg_return: number | null }>
+  /** How often an "always bullish" guess would have hit. */
+  base_rate_up: number | null
+  relative_directional: number
+  relative_hits: number
+  /** Hit rate against the benchmark: bullish beat SPY, bearish lagged it. */
+  relative_hit_rate: number | null
+  avg_benchmark_return: number | null
+  by_signal: Record<
+    SignalType,
+    { count: number; avg_return: number | null; avg_excess_return: number | null }
+  >
   by_confidence: { bucket: string; count: number; hits: number; hit_rate: number | null }[]
 }
 

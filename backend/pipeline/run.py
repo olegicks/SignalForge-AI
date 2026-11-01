@@ -65,6 +65,15 @@ def final_status(processed: int, failed: int) -> str:
     return "partial" if failed else "success"
 
 
+def news_lookback_hours(base_hours: int, now: datetime) -> int:
+    """The news window for this run, widened on Mondays.
+
+    The weekday 06:00 UTC run normally looks back over the last trading day. On Monday the
+    base 48 h only reaches Saturday morning, so one extra day brings Friday's news back in.
+    """
+    return base_hours + 24 if now.weekday() == 0 else base_hours
+
+
 def no_news_result() -> SignalResult:
     """Skip the LLM entirely when there is nothing to read: cheaper and more honest."""
     return SignalResult(
@@ -94,7 +103,7 @@ def process_ticker(
     articles = collect_news(
         entry.ticker,
         entry.query,
-        lookback_hours=settings.news_lookback_hours,
+        lookback_hours=news_lookback_hours(settings.news_lookback_hours, now),
         max_items=settings.max_news_per_ticker,
         now=now,
     )

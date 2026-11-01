@@ -16,6 +16,10 @@ from pipeline.collectors.prices import download_closes
 logger = logging.getLogger(__name__)
 
 HORIZONS = (7, 30)
+BENCHMARK_TICKER = "SPY"
+# How far before the oldest signal to download, so the benchmark's base close exists
+# even across long weekends and holidays.
+BENCHMARK_LOOKBACK_DAYS = 7
 
 DownloadFn = Callable[[list[str], date, date], dict[str, pd.Series]]
 
@@ -36,6 +40,18 @@ def first_close_on_or_after(closes: pd.Series, target: date) -> tuple[date, floa
     return later.index[0], float(later.iloc[0])
 
 
+def last_close_before(closes: pd.Series, day: date) -> float | None:
+    """The last close strictly before `day`.
+
+    This matches `price_at_signal`: the daily run happens at 06:00 UTC, before US markets open,
+    so the stock's last close is the previous session's.
+    """
+    earlier = closes[[d < day for d in closes.index]]
+    if earlier.empty:
+        return None
+    return float(earlier.sort_index().iloc[-1])
+
+
 def simple_return(price: float, base: float) -> float:
     return round(price / base - 1, 6)
 
@@ -52,11 +68,14 @@ def evaluate_signals(
     today: date,
     download: DownloadFn | None = None,
     now: datetime | None = None,
+    benchmark: str = BENCHMARK_TICKER,
 ) -> EvaluationSummary:
     """Evaluate every signal that is old enough and not yet evaluated.
 
     Only closes from before `today` are used, so a partial intraday price never counts.
-    Signals whose target close does not exist yet are left for a later run.
+    Signals whose target close does not exist yet are left for a later run. The benchmark's
+    return over the same window is stored alongside; a missing benchmark never blocks the
+    stock's own outcome.
     """
     now = now or datetime.now(UTC)
     download = download or download_closes
@@ -67,20 +86,26 @@ def evaluate_signals(
         logger.info("evaluate: nothing to do")
         return summary
 
-    tickers = sorted({s.ticker for s in pending})
-    start = min(s.as_of_date for s in pending) + timedelta(days=min(HORIZONS))
+    tickers = sorted({s.ticker for s in pending} | {benchmark})
+    start = min(s.as_of_date for s in pending) - timedelta(days=BENCHMARK_LOOKBACK_DAYS)
     end = today - timedelta(days=1)
-    closes = download(tickers, start, end)
+    closes = {
+        ticker: series[[day < today for day in series.index]]
+        for ticker, series in download(tickers, start, end).items()
+    }
     logger.info(
         "evaluate: candidates=%d tickers=%d window=%s..%s", len(pending), len(tickers), start, end
     )
+    bench_series = closes.get(benchmark)
 
     for signal in pending:
         series = closes.get(signal.ticker)
         if series is None or series.empty:
             continue
-        series = series[[day < today for day in series.index]]
         base = float(signal.price_at_signal)
+        bench_base = (
+            last_close_before(bench_series, signal.as_of_date) if bench_series is not None else None
+        )
         for horizon in HORIZONS:
             if getattr(signal, f"evaluated_{horizon}d_at") is not None:
                 continue
@@ -94,6 +119,16 @@ def evaluate_signals(
             setattr(signal, f"price_{horizon}d", Decimal(str(round(price, 4))))
             setattr(signal, f"return_{horizon}d", simple_return(price, base))
             setattr(signal, f"evaluated_{horizon}d_at", now)
+
+            if bench_series is not None and bench_base:
+                bench_found = first_close_on_or_after(bench_series, target)
+                if bench_found is not None:
+                    setattr(
+                        signal,
+                        f"benchmark_return_{horizon}d",
+                        simple_return(bench_found[1], bench_base),
+                    )
+
             if horizon == 7:
                 summary.filled_7d += 1
             else:

@@ -95,6 +95,9 @@ class Signal(Base):
     return_7d: Mapped[float | None] = mapped_column(Float)
     price_30d: Mapped[Decimal | None] = mapped_column(Numeric(14, 4))
     return_30d: Mapped[float | None] = mapped_column(Float)
+    # Same-window return of the market benchmark (SPY), to tell skill from a rising market.
+    benchmark_return_7d: Mapped[float | None] = mapped_column(Float)
+    benchmark_return_30d: Mapped[float | None] = mapped_column(Float)
     evaluated_7d_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     evaluated_30d_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 

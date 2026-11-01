@@ -333,6 +333,78 @@ h1 {
 .table tbody tr:hover {
   background: var(--surface-2);
 }
+/* Overview filters and day-over-day change */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.filter-chip {
+  font: inherit;
+  font-size: 0.85rem;
+  text-transform: capitalize;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-2);
+  border-radius: 999px;
+  padding: 3px 12px;
+  cursor: pointer;
+}
+.filter-chip:hover {
+  background: var(--surface-2);
+}
+.filter-chip.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--text);
+  font-weight: 600;
+}
+.filter-count {
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  margin-left: 2px;
+}
+.score-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.delta {
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.delta-up {
+  color: var(--bullish);
+}
+.delta-down {
+  color: var(--bearish);
+}
+.delta-flat {
+  color: var(--text-3);
+}
+.was {
+  margin-top: 2px;
+}
+.mini-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px 16px;
+  margin: 4px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.mini-stats dt {
+  font-size: 0.75rem;
+  color: var(--text-2);
+}
+.mini-stats dd {
+  margin: 2px 0 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
 .row-link {
   cursor: pointer;
 }
