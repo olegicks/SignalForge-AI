@@ -17,7 +17,7 @@
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169e1?logo=postgresql&logoColor=white)
 ![OpenAI](https://img.shields.io/badge/OpenAI-Structured_Outputs-412991?logo=openai&logoColor=white)
 
-[**Live demo**](https://signal-forge-ai.vercel.app) · [API docs](https://signalforge-api-92bs.onrender.com/docs) · [How it works](#how-it-works) · [Track record](#how-the-track-record-works) · [Run it yourself](#local-setup)
+[**Live demo**](https://signal-forge-ai.vercel.app) · [API docs](https://signalforge-api-92bs.onrender.com/docs) · [How it works](#how-it-works) · [Ask the news](#how-rag-works) · [Track record](#how-the-track-record-works) · [Run it yourself](#local-setup)
 
 </div>
 
@@ -49,11 +49,12 @@ It runs entirely on free tiers. A full daily run of 25 tickers costs about **$0.
 | 🔢 **The model never invents numbers** | Every price and percentage comes from yfinance. The model cites news by item number, so it can't make up a link either. |
 | 🛡️ **Validation after the model** | Out-of-range scores and confidences are clamped, unknown sources are dropped, lists are trimmed. |
 | 📈 **Honest track record** | Each signal is scored against the first real close 7 and 30 days later, **and against SPY over the same days**. Hit rates are shown next to an "always bullish" baseline and broken down by confidence bucket. |
+| 💬 **Ask the news (RAG)** | Ask a question and get an answer built only from stored news and signals: pgvector retrieval, numbered sources with similarity scores, and an honest "not enough data" when the evidence isn't there. |
 | 🔁 **Day-over-day view** | The overview shows how each score moved since the previous signal (▲2, ▼1, "was bearish") and filters by signal type. |
 | ⏰ **Runs itself** | A GitHub Actions cron job every weekday at 05:17 UTC. It applies migrations, then runs the pipeline. |
 | 🧱 **Fails gracefully** | Each ticker is isolated. Network calls retry with backoff. A run ends as `success`, `partial` or `failed`. |
 | 💸 **Cost-aware** | Token usage and the estimated cost of every run are logged and shown on the dashboard. Tickers with no news skip the LLM. |
-| ✅ **Tested** | 95 pytest tests against a real Postgres, with yfinance, RSS and OpenAI mocked. CI runs ruff, pytest and the frontend build. |
+| ✅ **Tested** | 127 pytest tests against a real Postgres, with yfinance, RSS and OpenAI mocked. CI runs ruff, pytest and the frontend build. |
 
 ## How it works
 
@@ -82,8 +83,9 @@ flowchart LR
    - **Analyze**: the model gets the ticker, our price metrics and the **numbered** news items (title, summary cut to about 300 characters, source, date). It returns a structured signal and cites news by item number, which the code maps back to URLs. If there is no news at all, the LLM is skipped and a neutral, zero-confidence signal is saved.
    - **Validate**: `score` is clamped to 1–10 and `confidence` to 0–1, unknown sources are dropped, lists are trimmed.
    - **Save**: the signal is upserted on (`ticker`, `as_of_date`), so re-running on the same day never creates duplicates.
-4. **Evaluate**: outcomes are filled in for past signals (see below).
-5. **Finish.** The run is marked `success`, `partial` or `failed`, with token totals, the estimated cost and any errors. The process exits non-zero only on `failed`.
+4. **Embed**: news items and signal explanations without a vector are embedded in batches for "Ask the news" (signals again if a re-run changed their text). Tokens and cost are logged; a failure here never fails the run.
+5. **Evaluate**: outcomes are filled in for past signals (see below).
+6. **Finish.** The run is marked `success`, `partial` or `failed`, with token totals, the estimated cost and any errors. The process exits non-zero only on `failed`.
 
 | CLI flag | Effect |
 |---|---|
@@ -91,6 +93,39 @@ flowchart LR
 | `--dry-run` | Do everything but write nothing to the database; print a JSON report |
 | `--no-llm` | Collect prices and news only |
 | `--evaluate-only` | Only fill in 7d/30d outcomes (combine with `--dry-run` to preview) |
+| `--embed-only` | Only embed news and signals that have no vector yet (backfill; `--dry-run` just counts) |
+
+## How RAG works
+
+```mermaid
+flowchart LR
+    Q["Question<br/>(+ optional ticker)"] --> E["Embed<br/>text-embedding-3-small"]
+    E --> R[("pgvector HNSW<br/>news + signals")]
+    R -- "top-k ≥ threshold" --> C{"anything<br/>relevant?"}
+    C -- no --> N["Not enough data"]
+    C -- yes --> L["LLM, structured output<br/>numbered items, no URLs"]
+    L --> G{"grounded?<br/>valid source_ids"}
+    G -- no --> N
+    G -- yes --> A["Answer + numbered sources<br/>with similarity scores"]
+```
+
+Every stored news item (title and summary) and every signal explanation is embedded by the daily pipeline into a 512-dimension vector in Postgres (pgvector, HNSW index, cosine distance). `POST /ask` embeds the question, retrieves the `RAG_TOP_K` closest items (optionally for one ticker) and drops anything below `RAG_MIN_SIMILARITY`. On real data, relevant items scored 0.44–0.70 and an off-topic question 0.18 at most. The surviving items go to the model **numbered and without URLs**; the model returns `{answer, source_ids, sufficient_evidence}` through Structured Outputs, and the code maps the numbers back to sources, the same pattern as the signal analyzer. Unknown numbers are dropped. If nothing relevant is retrieved, the model says the evidence is insufficient, or no valid source is cited, the API returns "not enough data in the news database" instead of guessing.
+
+Costs are capped: questions are limited to 300 characters, each client IP to `ASK_RATE_LIMIT_PER_MINUTE` (5) per minute, and the whole API to `ASK_DAILY_LIMIT` (200) questions per UTC day, counted in the database. A typical answer costs about $0.0001–0.0002. Only metadata is logged (hashed IP, ticker, tokens, cost), never the question text.
+
+## API
+
+Read-only except `POST /ask`. Interactive docs: [`/docs`](https://signalforge-api-92bs.onrender.com/docs).
+
+| Endpoint | Returns |
+|---|---|
+| `GET /health` | Status and whether the database is reachable |
+| `GET /runs?limit=20` | Recent pipeline runs with tokens and estimated cost |
+| `GET /signals/latest?limit=25&sort=score` | The latest day's signals, each with its previous signal |
+| `GET /signals?ticker=&from=&to=` | Signal history |
+| `GET /tickers/{ticker}` | Signal history, recent news and ~90 days of closes |
+| `GET /stats/track-record` | Hit rates (absolute, vs SPY, baseline), returns by signal type, confidence buckets |
+| `POST /ask` | `{question, ticker?}` → `{answer, sources[{id, kind, title, url, source, published_at, ticker, similarity}], sufficient_evidence, retrieved_count, tokens, est_cost_usd}`; 422 for invalid input, 429 when a limit is hit, 503 if not configured |
 
 ## How the track record works
 
@@ -221,6 +256,15 @@ Backend (`backend/.env`, GitHub secrets or variables, Render):
 | `LLM_MAX_OUTPUT_TOKENS` | `400` | Output token cap per call |
 | `CORS_ORIGINS` | `http://localhost:5173` | Comma-separated allowed frontend origins |
 | `ANALYZER_PROVIDER` | `openai` | Which analyzer class to use (one switch for future providers) |
+| `OPENAI_EMBEDDING_MODEL` | empty | Embedding model, e.g. `text-embedding-3-small`; empty disables embedding and `/ask` |
+| `EMBEDDING_DIM` | `512` | Vector size, fixed in the database by migration 0003 |
+| `OPENAI_EMBEDDING_PRICE_PER_1M` | `0` | USD per 1M embedding tokens, for cost estimates |
+| `EMBEDDING_BATCH_SIZE` | `100` | Texts per embeddings request |
+| `RAG_TOP_K` | `8` | Items retrieved per question |
+| `RAG_MIN_SIMILARITY` | `0.30` | Cosine similarity below which items are dropped |
+| `ASK_MAX_OUTPUT_TOKENS` | `500` | Output cap for an answer |
+| `ASK_RATE_LIMIT_PER_MINUTE` | `5` | `/ask` calls per client IP per minute |
+| `ASK_DAILY_LIMIT` | `200` | `/ask` calls per UTC day for the whole API |
 | `LOG_LEVEL` | `INFO` | `DEBUG` also prints full tracebacks for failed tickers |
 
 Frontend: `VITE_API_URL`, the public URL of the API.
@@ -235,10 +279,10 @@ Frontend: `VITE_API_URL`, the public URL of the API.
 **2. GitHub secrets.**
 1. Push the repository.
 2. Under **Settings → Secrets and variables → Actions**, add `DATABASE_URL`, `OPENAI_API_KEY` and `OPENAI_MODEL`.
-3. Optionally add `OPENAI_PRICE_INPUT_PER_1M`, `OPENAI_PRICE_OUTPUT_PER_1M` and `OPENAI_REASONING_EFFORT` as variables or secrets.
+3. Optionally add `OPENAI_PRICE_INPUT_PER_1M`, `OPENAI_PRICE_OUTPUT_PER_1M`, `OPENAI_REASONING_EFFORT`, and for "Ask the news" `OPENAI_EMBEDDING_MODEL`, `EMBEDDING_DIM` and `OPENAI_EMBEDDING_PRICE_PER_1M`, as variables or secrets.
 4. Start the first run with **Actions → Daily pipeline → Run workflow**. It runs `alembic upgrade head` first, so the schema is created automatically.
 
-**3. Render (API).** Choose **New → Blueprint** and pick the repository; `render.yaml` creates one free web service with `rootDir: backend`. Set `DATABASE_URL` and `CORS_ORIGINS` (your Vercel URL, no trailing slash), then check `/health` and `/docs`.
+**3. Render (API).** Choose **New → Blueprint** and pick the repository; `render.yaml` creates one free web service with `rootDir: backend`. Set `DATABASE_URL` and `CORS_ORIGINS` (your Vercel URL, no trailing slash). For "Ask the news" also set `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_REASONING_EFFORT`, `OPENAI_EMBEDDING_MODEL` and the price variables; without them `/ask` answers 503 and the rest of the API works as before. Then check `/health` and `/docs`.
 
 **4. Vercel (frontend).** Import the repository and set the **Root Directory** to `frontend` (`vercel.json` adds the SPA rewrite). Add `VITE_API_URL=https://<service>.onrender.com` and deploy. Finally, add the Vercel URL to `CORS_ORIGINS` on Render.
 
@@ -248,6 +292,8 @@ Frontend: `VITE_API_URL`, the public URL of the API.
 
 - **Hosting is free:** Neon, Render and Vercel free tiers, plus GitHub Actions minutes. Render's health check uses `/`, which doesn't touch the database, so Neon can suspend when idle.
 - **LLM usage is tiny:** the first full production run (25 tickers, `gpt-6-luna`) used 19,303 input and 3,769 output tokens, **$0.0038** in total. That's under **$0.10 a month** on weekdays.
+- **Embeddings are nearly free:** backfilling 395 news items and 50 signals used 13,827 tokens, **$0.0003**. Vectors are 512-dimensional to stay well inside Neon's free storage.
+- **Ask the news** answers cost about $0.0001–0.0002 each, and the daily cap of 200 questions bounds the worst case at roughly $0.04 a day.
 - Every run stores `input_tokens`, `output_tokens` and `est_cost_usd`, and the dashboard shows the latest cost.
 - Hard caps: `MAX_TICKERS_PER_RUN`, `MAX_NEWS_PER_TICKER`, `LLM_MAX_OUTPUT_TOKENS`, and a 20-minute workflow timeout.
 
@@ -265,6 +311,7 @@ Frontend: `VITE_API_URL`, the public URL of the API.
 - X/Twitter sentiment via Grok, as a second analyzer behind `ANALYZER_PROVIDER`.
 - Startup and small-cap screening beyond a fixed watchlist.
 - Per-sector breakdowns and more benchmarks (e.g. a sector ETF per ticker).
+- Hybrid retrieval (keyword + vector) and recency weighting for "Ask the news".
 
 ## Disclaimer
 

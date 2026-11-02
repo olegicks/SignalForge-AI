@@ -16,3 +16,22 @@ services:
         sync: false
       - key: CORS_ORIGINS
         sync: false
+      # Needed only by POST /ask ("Ask the news"); without them /ask answers 503.
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        sync: false
+      - key: OPENAI_REASONING_EFFORT
+        sync: false
+      - key: OPENAI_EMBEDDING_MODEL
+        sync: false
+      - key: EMBEDDING_DIM
+        value: "512"
+      - key: OPENAI_PRICE_INPUT_PER_1M
+        sync: false
+      - key: OPENAI_PRICE_OUTPUT_PER_1M
+        sync: false
+      - key: OPENAI_EMBEDDING_PRICE_PER_1M
+        sync: false
+      - key: ASK_DAILY_LIMIT
+        value: "200"
