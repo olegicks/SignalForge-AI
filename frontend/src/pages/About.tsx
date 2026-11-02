@@ -16,6 +16,10 @@ const STEPS = [
     text: 'Any source URL the model did not receive is dropped, numbers are clamped to their ranges, and everything is stored in PostgreSQL.',
   },
   {
+    title: 'Ask',
+    text: 'News and signals are embedded with pgvector. "Ask the news" retrieves the closest items and answers only from them, with numbered sources, or says the data is not there.',
+  },
+  {
     title: 'Evaluate',
     text: '7 and 30 days later each signal is checked against the real closing price, which builds an honest, public track record.',
   },
@@ -24,7 +28,8 @@ const STEPS = [
 const STACK: [string, string][] = [
   ['Pipeline', 'Python 3.12, yfinance, feedparser, Pydantic'],
   ['LLM', 'OpenAI Structured Outputs, parsed into Pydantic models'],
-  ['Database', 'PostgreSQL on Neon, SQLAlchemy 2, Alembic'],
+  ['Database', 'PostgreSQL on Neon, SQLAlchemy 2, Alembic, pgvector'],
+  ['RAG', 'OpenAI embeddings, HNSW cosine search, grounded structured answers'],
   ['API', 'FastAPI on Render (free tier)'],
   ['Frontend', 'React, Vite, TypeScript, Recharts on Vercel'],
   ['Automation', 'GitHub Actions: daily cron and CI (ruff, pytest, build)'],

@@ -119,32 +119,48 @@ const WAKING_STATUSES = new Set([502, 503, 504])
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-async function fetchWithTimeout(url: string, signal?: AbortSignal): Promise<Response> {
+interface RequestOptions {
+  signal?: AbortSignal
+  onWaking?: () => void
+}
+
+async function fetchWithTimeout(url: string, init: RequestInit, signal?: AbortSignal) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
   const onAbort = () => controller.abort()
   signal?.addEventListener('abort', onAbort)
   try {
-    return await fetch(url, { signal: controller.signal, headers: { Accept: 'application/json' } })
+    return await fetch(url, { ...init, signal: controller.signal })
   } finally {
     clearTimeout(timer)
     signal?.removeEventListener('abort', onAbort)
   }
 }
 
-export async function apiGet<T>(
-  path: string,
-  options: { signal?: AbortSignal; onWaking?: () => void } = {},
-): Promise<T> {
+/** The API's own error message (FastAPI's `detail`), if the body has one. */
+async function errorDetail(response: Response): Promise<string | null> {
+  try {
+    const body = (await response.clone().json()) as { detail?: unknown }
+    if (typeof body.detail === 'string') return body.detail
+    if (Array.isArray(body.detail)) return 'Please check your input and try again.'
+  } catch {
+    // Not JSON: e.g. the hosting platform's own "service waking up" page.
+  }
+  return null
+}
+
+async function request<T>(path: string, init: RequestInit, options: RequestOptions): Promise<T> {
   const { signal, onWaking } = options
   const deadline = Date.now() + WAKE_DEADLINE_MS
   for (let attempt = 1; ; attempt++) {
     try {
-      const response = await fetchWithTimeout(`${API_URL}${path}`, signal)
+      const response = await fetchWithTimeout(`${API_URL}${path}`, init, signal)
       if (response.ok) return (await response.json()) as T
-      if (!WAKING_STATUSES.has(response.status) || Date.now() > deadline) {
+      const detail = await errorDetail(response)
+      // A JSON error came from our API itself, so the server is awake: don't retry.
+      if (detail !== null || !WAKING_STATUSES.has(response.status) || Date.now() > deadline) {
         const hint = response.status >= 500 ? ' The server hit an error; see the API logs.' : ''
-        throw new ApiError(response.status, `Request failed (${response.status}).${hint}`)
+        throw new ApiError(response.status, detail ?? `Request failed (${response.status}).${hint}`)
       }
     } catch (error) {
       if (signal?.aborted || error instanceof ApiError) throw error
@@ -162,4 +178,42 @@ export async function apiGet<T>(
     await sleep(Math.min(2_000 * attempt, 8_000))
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
   }
+}
+
+export function apiGet<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  return request<T>(path, { headers: { Accept: 'application/json' } }, options)
+}
+
+export function apiPost<T>(path: string, body: unknown, options: RequestOptions = {}): Promise<T> {
+  return request<T>(
+    path,
+    {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    },
+    options,
+  )
+}
+
+// --- Ask the news -----------------------------------------------------------
+
+export interface AskSource {
+  id: number
+  kind: 'news' | 'signal'
+  title: string
+  url: string
+  source: string
+  published_at: string
+  ticker: string
+  similarity: number
+}
+
+export interface AskResponse {
+  answer: string
+  sources: AskSource[]
+  sufficient_evidence: boolean
+  retrieved_count: number
+  tokens: { embedding: number; input: number; output: number }
+  est_cost_usd: number
 }

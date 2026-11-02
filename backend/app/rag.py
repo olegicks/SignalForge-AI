@@ -179,7 +179,7 @@ def retrieve(
             Retrieved(
                 kind="signal",
                 ticker=s.ticker,
-                title=f"{s.ticker} signal: {s.signal}, score {s.score}/10",
+                title=f"{s.ticker} signal on {s.as_of_date:%b %d}: {s.signal}, score {s.score}/10",
                 # Relative link to the dashboard's ticker page; the frontend routes it.
                 url=f"/tickers/{s.ticker}",
                 source=SIGNAL_SOURCE_NAME,

@@ -6,21 +6,26 @@ interface Props<T> {
   children: (data: T) => ReactNode
 }
 
+/** The cold-start message, shared by every page that talks to the API. */
+export function WakingNotice({ action = 'This page will load by itself.' }: { action?: string }) {
+  return (
+    <div className="state-box" role="status" aria-live="polite">
+      <span className="spinner" aria-hidden="true" />
+      <div>
+        <strong>Waking up the server…</strong>
+        <p className="muted">
+          The API runs on a free host that sleeps when idle. The first request can take up to a
+          minute. {action}
+        </p>
+      </div>
+    </div>
+  )
+}
+
 /** Renders loading, cold-start, error or the data, so pages only deal with the happy path. */
 export function AsyncState<T>({ state, children }: Props<T>) {
   if (state.loading && state.waking) {
-    return (
-      <div className="state-box" role="status" aria-live="polite">
-        <span className="spinner" aria-hidden="true" />
-        <div>
-          <strong>Waking up the server…</strong>
-          <p className="muted">
-            The API runs on a free host that sleeps when idle. The first request can take up to a
-            minute. This page will load by itself.
-          </p>
-        </div>
-      </div>
-    )
+    return <WakingNotice />
   }
   if (state.loading) {
     return (

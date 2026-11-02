@@ -56,6 +56,7 @@ export function Layout() {
               Overview
             </NavLink>
             <NavLink to="/track-record">Track record</NavLink>
+            <NavLink to="/ask">Ask the news</NavLink>
             <NavLink to="/about">About</NavLink>
           </nav>
           <ThemeToggle />

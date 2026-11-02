@@ -145,7 +145,7 @@ def test_retrieval_ranks_by_similarity_and_applies_threshold(corpus: Session) ->
     assert [(i.kind, i.title.split(":")[0]) for i in items] == [
         ("news", "News A"),
         ("news", "News B"),
-        ("signal", "AAPL signal"),
+        ("signal", "AAPL signal on Oct 30"),
     ]
     assert [round(i.similarity, 2) for i in items] == [1.0, 0.8, 0.6]
     # MSFT news (similarity 0) is below the threshold; a stricter threshold drops more.

@@ -4,6 +4,7 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import './index.css'
 import { About } from './pages/About'
+import { Ask } from './pages/Ask'
 import { NotFound } from './pages/NotFound'
 import { Overview } from './pages/Overview'
 import { TrackRecord } from './pages/TrackRecord'
@@ -28,6 +29,7 @@ createRoot(document.getElementById('root')!).render(
             }
           />
           <Route path="track-record" element={<TrackRecord />} />
+          <Route path="ask" element={<Ask />} />
           <Route path="about" element={<About />} />
           <Route path="*" element={<NotFound />} />
         </Route>
