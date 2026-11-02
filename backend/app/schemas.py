@@ -1,8 +1,10 @@
 """API response models."""
 
+import re
 from datetime import date, datetime
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
 
 class ORMModel(BaseModel):
@@ -121,3 +123,47 @@ class TrackRecordOut(BaseModel):
     total_signals: int
     horizons: list[HorizonStats]
     recent_evaluated: list[SignalOut]
+
+
+# --- Ask the news ------------------------------------------------------------
+
+
+class AskIn(BaseModel):
+    question: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=300)]
+    ticker: str | None = Field(default=None, max_length=10)
+
+    @field_validator("ticker")
+    @classmethod
+    def normalise_ticker(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
+        value = value.strip().upper()
+        if not re.fullmatch(r"[A-Z][A-Z.\-]{0,9}", value):
+            raise ValueError("ticker must be letters, '.' or '-'")
+        return value
+
+
+class AskSourceOut(BaseModel):
+    id: int = Field(description="The item number the answer cites as [id]")
+    kind: Literal["news", "signal"]
+    title: str
+    url: str = Field(description="Article URL, or a relative dashboard link for signals")
+    source: str
+    published_at: datetime
+    ticker: str
+    similarity: float
+
+
+class AskTokensOut(BaseModel):
+    embedding: int
+    input: int
+    output: int
+
+
+class AskOut(BaseModel):
+    answer: str
+    sources: list[AskSourceOut]
+    sufficient_evidence: bool
+    retrieved_count: int
+    tokens: AskTokensOut
+    est_cost_usd: float

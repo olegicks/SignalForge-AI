@@ -5,6 +5,7 @@ from decimal import Decimal
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     Date,
     DateTime,
@@ -145,3 +146,22 @@ class SignalEmbedding(Base):
     content_hash: Mapped[str] = mapped_column(String(64))
     model: Mapped[str] = mapped_column(String(100))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AskRequest(Base):
+    """One POST /ask call: backs the daily cap and cost tracking (no question text stored)."""
+
+    __tablename__ = "ask_requests"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )
+    ip_hash: Mapped[str] = mapped_column(String(64))
+    ticker: Mapped[str | None] = mapped_column(String(16))
+    retrieved_count: Mapped[int] = mapped_column(Integer)
+    sufficient_evidence: Mapped[bool] = mapped_column(Boolean)
+    embedding_tokens: Mapped[int] = mapped_column(Integer)
+    input_tokens: Mapped[int] = mapped_column(Integer)
+    output_tokens: Mapped[int] = mapped_column(Integer)
+    est_cost_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6))

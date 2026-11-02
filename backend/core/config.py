@@ -58,6 +58,13 @@ class Settings(BaseSettings):
     openai_embedding_price_per_1m: float = Field(default=0.0, ge=0)
     embedding_batch_size: int = Field(default=100, gt=0, le=2048)
 
+    # "Ask the news" (POST /ask)
+    rag_top_k: int = Field(default=8, gt=0, le=30)
+    rag_min_similarity: float = Field(default=0.30, ge=-1, le=1)
+    ask_max_output_tokens: int = Field(default=500, gt=0)
+    ask_rate_limit_per_minute: int = Field(default=5, gt=0)
+    ask_daily_limit: int = Field(default=200, gt=0)
+
     # Pipeline limits
     max_news_per_ticker: int = Field(default=8, gt=0)
     news_lookback_hours: int = Field(default=48, gt=0)

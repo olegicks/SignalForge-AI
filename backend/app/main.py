@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 
+from app.api.ask import router as ask_router
 from app.api.routes import router
 from core.config import get_settings
 
@@ -53,13 +54,16 @@ def create_app() -> FastAPI:
     app.middleware("http")(catch_unhandled_errors)
     app.middleware("http")(add_cache_headers)
     app.add_middleware(GZipMiddleware, minimum_size=1000)
+    # POST is allowed for POST /ask, the only write endpoint; every other route only has GET
+    # handlers, so POST to them still gets 405 (tested in test_ask.py).
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
-        allow_methods=["GET"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST"],
+        allow_headers=["Content-Type"],
     )
     app.include_router(router)
+    app.include_router(ask_router)
 
     @app.get("/", include_in_schema=False)
     def root() -> dict[str, str]:
