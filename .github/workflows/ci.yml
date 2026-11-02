@@ -16,7 +16,8 @@ jobs:
         working-directory: backend
     services:
       postgres:
-        image: postgres:16
+        # Postgres 16 with the pgvector extension, needed by the embeddings migration.
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres

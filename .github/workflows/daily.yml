@@ -34,6 +34,10 @@ jobs:
       OPENAI_PRICE_INPUT_PER_1M: ${{ vars.OPENAI_PRICE_INPUT_PER_1M || secrets.OPENAI_PRICE_INPUT_PER_1M }}
       OPENAI_PRICE_OUTPUT_PER_1M: ${{ vars.OPENAI_PRICE_OUTPUT_PER_1M || secrets.OPENAI_PRICE_OUTPUT_PER_1M }}
       OPENAI_REASONING_EFFORT: ${{ vars.OPENAI_REASONING_EFFORT || secrets.OPENAI_REASONING_EFFORT }}
+      # Embeddings for "Ask the news". Without OPENAI_EMBEDDING_MODEL the embed step is skipped.
+      OPENAI_EMBEDDING_MODEL: ${{ vars.OPENAI_EMBEDDING_MODEL || secrets.OPENAI_EMBEDDING_MODEL }}
+      EMBEDDING_DIM: ${{ vars.EMBEDDING_DIM || secrets.EMBEDDING_DIM }}
+      OPENAI_EMBEDDING_PRICE_PER_1M: ${{ vars.OPENAI_EMBEDDING_PRICE_PER_1M || secrets.OPENAI_EMBEDDING_PRICE_PER_1M }}
     steps:
       - uses: actions/checkout@v5
 

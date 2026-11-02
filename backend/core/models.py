@@ -3,6 +3,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     CheckConstraint,
     Date,
@@ -46,6 +47,7 @@ class PipelineRun(Base):
     input_tokens: Mapped[int] = mapped_column(Integer, default=0)
     output_tokens: Mapped[int] = mapped_column(Integer, default=0)
     est_cost_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), default=Decimal("0"))
+    embedding_tokens: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     model: Mapped[str | None] = mapped_column(String(100))
     error_summary: Mapped[str | None] = mapped_column(Text)
 
@@ -114,3 +116,32 @@ class PriceBar(Base):
     ticker: Mapped[str] = mapped_column(String(16), index=True)
     date: Mapped[date] = mapped_column(Date)
     close: Mapped[Decimal] = mapped_column(Numeric(14, 4))
+
+
+# Embeddings for RAG ("Ask the news"). The vector size is set by migration 0003 from
+# EMBEDDING_DIM, so the ORM column is declared without a fixed dimension.
+
+
+class NewsEmbedding(Base):
+    __tablename__ = "news_embeddings"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    news_item_id: Mapped[int] = mapped_column(
+        ForeignKey("news_items.id", ondelete="CASCADE"), unique=True
+    )
+    embedding: Mapped[list[float]] = mapped_column(Vector())
+    model: Mapped[str] = mapped_column(String(100))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class SignalEmbedding(Base):
+    __tablename__ = "signal_embeddings"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    signal_id: Mapped[int] = mapped_column(
+        ForeignKey("signals.id", ondelete="CASCADE"), unique=True
+    )
+    embedding: Mapped[list[float]] = mapped_column(Vector())
+    content_hash: Mapped[str] = mapped_column(String(64))
+    model: Mapped[str] = mapped_column(String(100))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

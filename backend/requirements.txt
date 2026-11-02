@@ -10,3 +10,4 @@ yfinance==1.7.0
 feedparser==6.0.14
 pyyaml==6.0.3
 tenacity==9.2.1
+pgvector==0.5.1

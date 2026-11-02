@@ -51,6 +51,13 @@ class Settings(BaseSettings):
     openai_price_input_per_1m: float = Field(default=0.0, ge=0)
     openai_price_output_per_1m: float = Field(default=0.0, ge=0)
 
+    # Embeddings (RAG). Empty model = embedding disabled. The dimension is fixed in the
+    # database by migration 0003; changing it later means a new migration and re-embedding.
+    openai_embedding_model: str = ""
+    embedding_dim: int = Field(default=512, gt=0, le=2000)
+    openai_embedding_price_per_1m: float = Field(default=0.0, ge=0)
+    embedding_batch_size: int = Field(default=100, gt=0, le=2048)
+
     # Pipeline limits
     max_news_per_ticker: int = Field(default=8, gt=0)
     news_lookback_hours: int = Field(default=48, gt=0)
@@ -71,6 +78,9 @@ class Settings(BaseSettings):
             input_tokens * self.openai_price_input_per_1m
             + output_tokens * self.openai_price_output_per_1m
         ) / 1_000_000
+
+    def estimate_embedding_cost_usd(self, tokens: int) -> float:
+        return tokens * self.openai_embedding_price_per_1m / 1_000_000
 
 
 @lru_cache

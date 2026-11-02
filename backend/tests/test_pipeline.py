@@ -103,6 +103,34 @@ def test_full_run_saves_everything(
     assert count(db_session, PriceBar) > 0
 
 
+def test_run_embeds_and_counts_embedding_cost(
+    db_session: Session, settings: Settings, fake_sources: dict
+) -> None:
+    from tests.test_embed import FakeEmbedder
+
+    settings.openai_embedding_price_per_1m = 2.0
+    embedder = FakeEmbedder()
+    summary = run_pipeline(Options(), settings, db_session, FakeAnalyzer(), NOW, embedder=embedder)
+
+    # 3 news items + 2 signals, 3 fake tokens each.
+    assert summary.embedding_tokens == 15
+    run = db_session.scalars(select(PipelineRun)).one()
+    assert run.embedding_tokens == 15
+    # LLM part as in test_full_run_saves_everything, plus 15 * $2/1M.
+    assert float(run.est_cost_usd) == pytest.approx(0.0018 + 0.00003)
+
+
+def test_embed_failure_does_not_fail_the_run(
+    db_session: Session, settings: Settings, fake_sources: dict
+) -> None:
+    from tests.test_embed import FakeEmbedder
+
+    broken = FakeEmbedder(dim=3)  # wrong size for the database column
+    summary = run_pipeline(Options(), settings, db_session, FakeAnalyzer(), NOW, embedder=broken)
+    assert summary.status == "success"
+    assert any(e.startswith("embed:") for e in summary.errors)
+
+
 def test_rerun_same_day_is_idempotent(
     db_session: Session, settings: Settings, fake_sources: dict
 ) -> None:

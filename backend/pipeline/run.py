@@ -1,6 +1,6 @@
 """Daily pipeline entrypoint.
 
-python -m pipeline.run [--tickers AAPL,MSFT] [--dry-run] [--no-llm] [--evaluate-only]
+python -m pipeline.run [--tickers A,B] [--dry-run] [--no-llm] [--evaluate-only] [--embed-only]
 """
 
 import argparse
@@ -25,6 +25,8 @@ from pipeline.collectors.prices import (
     fetch_history,
     recent_closes,
 )
+from pipeline.embed import embed_pending, pending_news, pending_signals
+from pipeline.embeddings import Embedder, EmbeddingError, OpenAIEmbedder
 from pipeline.evaluate import evaluate_signals
 from pipeline.storage import store_news, upsert_price_bars, upsert_signal
 from pipeline.watchlist import WatchlistEntry, load_watchlist
@@ -41,6 +43,7 @@ class Options:
     dry_run: bool = False
     no_llm: bool = False
     evaluate_only: bool = False
+    embed_only: bool = False
 
 
 @dataclass
@@ -59,6 +62,7 @@ class RunSummary:
     failed: int = 0
     input_tokens: int = 0
     output_tokens: int = 0
+    embedding_tokens: int = 0
     est_cost_usd: float = 0.0
     errors: list[str] = field(default_factory=list)
     outcomes: list[TickerOutcome] = field(default_factory=list)
@@ -148,8 +152,13 @@ def run_pipeline(
     session: Session | None,
     analyzer: Analyzer | None,
     now: datetime | None = None,
+    embedder: Embedder | None = None,
 ) -> RunSummary:
-    """Run steps 1-5. `session` is None for a dry run, `analyzer` is None for --no-llm."""
+    """Run the daily steps.
+
+    `session` is None for a dry run, `analyzer` is None for --no-llm, and `embedder` is None
+    when embeddings are disabled (no OPENAI_EMBEDDING_MODEL) or for --no-llm.
+    """
     now = now or datetime.now(UTC)
     as_of_date = now.date()
     summary = RunSummary()
@@ -207,6 +216,16 @@ def run_pipeline(
             outcome.result.score if outcome.result else "-",
         )
 
+    if session is not None and embedder is not None:
+        try:
+            embedded = embed_pending(session, embedder, settings.embedding_batch_size)
+            summary.embedding_tokens = embedded.tokens
+        except Exception as exc:
+            # Embeddings only feed "Ask the news"; a failure here never fails the run.
+            session.rollback()
+            summary.errors.append(f"embed: {type(exc).__name__}: {exc}")
+            logger.exception("embed step failed")
+
     if session is not None:
         try:
             evaluate_signals(session, today=as_of_date, now=now)
@@ -217,7 +236,9 @@ def run_pipeline(
             logger.exception("evaluate step failed")
 
     summary.status = final_status(summary.processed, summary.failed)
-    summary.est_cost_usd = settings.estimate_cost_usd(summary.input_tokens, summary.output_tokens)
+    summary.est_cost_usd = settings.estimate_cost_usd(
+        summary.input_tokens, summary.output_tokens
+    ) + settings.estimate_embedding_cost_usd(summary.embedding_tokens)
 
     if session is not None and run is not None:
         run.finished_at = datetime.now(UTC)
@@ -226,18 +247,20 @@ def run_pipeline(
         run.tickers_failed = summary.failed
         run.input_tokens = summary.input_tokens
         run.output_tokens = summary.output_tokens
+        run.embedding_tokens = summary.embedding_tokens
         run.est_cost_usd = Decimal(str(round(summary.est_cost_usd, 6)))
         run.error_summary = "\n".join(summary.errors)[:MAX_ERROR_SUMMARY_CHARS] or None
         session.commit()
 
     logger.info(
         "run finished status=%s processed=%d failed=%d input_tokens=%d output_tokens=%d "
-        "est_cost_usd=%.6f",
+        "embedding_tokens=%d est_cost_usd=%.6f",
         summary.status,
         summary.processed,
         summary.failed,
         summary.input_tokens,
         summary.output_tokens,
+        summary.embedding_tokens,
         summary.est_cost_usd,
     )
     return summary
@@ -287,19 +310,59 @@ def parse_args(argv: list[str] | None) -> Options:
     parser.add_argument("--dry-run", action="store_true", help="Write nothing to the database")
     parser.add_argument("--no-llm", action="store_true", help="Collect data only")
     parser.add_argument("--evaluate-only", action="store_true", help="Only fill in outcomes")
+    parser.add_argument(
+        "--embed-only", action="store_true", help="Only embed news and signals without vectors"
+    )
     args = parser.parse_args(argv)
     return Options(
         tickers=args.tickers.split(",") if args.tickers else None,
         dry_run=args.dry_run,
         no_llm=args.no_llm,
         evaluate_only=args.evaluate_only,
+        embed_only=args.embed_only,
     )
+
+
+def make_embedder(settings: Settings) -> Embedder | None:
+    """The embedder, or None when OPENAI_EMBEDDING_MODEL is not set (embedding disabled)."""
+    if not settings.openai_embedding_model:
+        return None
+    return OpenAIEmbedder(settings)
+
+
+def run_embed_only(settings: Settings, dry_run: bool) -> int:
+    """Backfill embeddings for everything stored so far. --dry-run only counts."""
+    with get_sessionmaker()() as session:
+        if dry_run:
+            news, signals = len(pending_news(session)), len(pending_signals(session))
+            print(json.dumps({"pending_news": news, "pending_signals": signals}, indent=2))
+            return 0
+        try:
+            embedder = make_embedder(settings)
+        except EmbeddingError as exc:
+            logger.error("cannot start embedder: %s", exc)
+            return 1
+        if embedder is None:
+            logger.error("OPENAI_EMBEDDING_MODEL is not set; nothing to do")
+            return 1
+        summary = embed_pending(session, embedder, settings.embedding_batch_size)
+    logger.info(
+        "embed-only finished news=%d signals=%d tokens=%d est_cost_usd=%.6f",
+        summary.news,
+        summary.signals,
+        summary.tokens,
+        settings.estimate_embedding_cost_usd(summary.tokens),
+    )
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
     options = parse_args(argv)
     settings = get_settings()
     configure_logging(settings.log_level)
+
+    if options.embed_only:
+        return run_embed_only(settings, options.dry_run)
 
     if options.evaluate_only:
         with get_sessionmaker()() as session:
@@ -313,16 +376,21 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         analyzer = None if options.no_llm else get_analyzer(settings)
-    except AnalyzerError as exc:
-        logger.error("cannot start analyzer: %s", exc)
+        embedder = None if options.no_llm else make_embedder(settings)
+    except (AnalyzerError, EmbeddingError) as exc:
+        logger.error("cannot start: %s", exc)
         return 1
+    if embedder is None and not options.no_llm:
+        logger.info("embedding disabled (OPENAI_EMBEDDING_MODEL is not set)")
 
     if options.dry_run:
         summary = run_pipeline(options, settings, session=None, analyzer=analyzer)
         print_dry_run(summary)
     else:
         with get_sessionmaker()() as session:
-            summary = run_pipeline(options, settings, session=session, analyzer=analyzer)
+            summary = run_pipeline(
+                options, settings, session=session, analyzer=analyzer, embedder=embedder
+            )
 
     return 1 if summary.status == "failed" else 0
 
