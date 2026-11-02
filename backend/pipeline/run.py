@@ -19,7 +19,12 @@ from core.db import get_sessionmaker
 from core.models import PipelineRun
 from pipeline.analyzer import Analyzer, AnalyzerError, SignalResult, get_analyzer
 from pipeline.collectors.news import collect_news
-from pipeline.collectors.prices import compute_metrics, fetch_history, recent_closes
+from pipeline.collectors.prices import (
+    completed_sessions,
+    compute_metrics,
+    fetch_history,
+    recent_closes,
+)
 from pipeline.evaluate import evaluate_signals
 from pipeline.storage import store_news, upsert_price_bars, upsert_signal
 from pipeline.watchlist import WatchlistEntry, load_watchlist
@@ -68,7 +73,7 @@ def final_status(processed: int, failed: int) -> str:
 def news_lookback_hours(base_hours: int, now: datetime) -> int:
     """The news window for this run, widened on Mondays.
 
-    The weekday 06:00 UTC run normally looks back over the last trading day. On Monday the
+    The early-morning weekday run normally looks back over the last trading day. On Monday the
     base 48 h only reaches Saturday morning, so one extra day brings Friday's news back in.
     """
     return base_hours + 24 if now.weekday() == 0 else base_hours
@@ -98,7 +103,7 @@ def process_ticker(
     as_of_date: date,
     now: datetime,
 ) -> TickerOutcome:
-    history = fetch_history(entry.ticker)
+    history = completed_sessions(fetch_history(entry.ticker), as_of_date)
     metrics = compute_metrics(entry.ticker, history)
     articles = collect_news(
         entry.ticker,

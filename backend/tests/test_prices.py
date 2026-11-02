@@ -35,6 +35,19 @@ def test_compute_metrics_with_short_history() -> None:
     assert metrics.volume_vs_20d_avg is None
 
 
+def test_completed_sessions_drops_todays_partial_session() -> None:
+    history = make_history([10.0, 11.0, 99.0])  # 2026-06-01..03; the 3rd is "today", mid-session
+    completed = prices.completed_sessions(history, date(2026, 6, 3))
+    assert list(completed["Close"]) == [10.0, 11.0]
+    # Early-morning run: nothing dated today yet, so nothing is dropped.
+    assert len(prices.completed_sessions(history, date(2026, 6, 4))) == 3
+
+
+def test_completed_sessions_raises_when_nothing_is_left() -> None:
+    with pytest.raises(prices.EmptyHistoryError):
+        prices.completed_sessions(make_history([10.0]), date(2026, 6, 1))
+
+
 def test_recent_closes_keeps_last_days_oldest_first() -> None:
     history = make_history([float(i) for i in range(100)])
     bars = prices.recent_closes(history, days=10)

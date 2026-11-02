@@ -43,8 +43,8 @@ def first_close_on_or_after(closes: pd.Series, target: date) -> tuple[date, floa
 def last_close_before(closes: pd.Series, day: date) -> float | None:
     """The last close strictly before `day`.
 
-    This matches `price_at_signal`: the daily run happens at 06:00 UTC, before US markets open,
-    so the stock's last close is the previous session's.
+    This matches `price_at_signal`, which is the last close before the signal date: the
+    pipeline only uses completed sessions (see `prices.completed_sessions`).
     """
     earlier = closes[[d < day for d in closes.index]]
     if earlier.empty:

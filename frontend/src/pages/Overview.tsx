@@ -13,7 +13,7 @@ function LastRunCard({ runs }: { runs: Run[] }) {
     return (
       <section className="card">
         <h2 className="card-title">Last pipeline run</h2>
-        <p className="muted">No runs yet. The pipeline runs every weekday at 06:00 UTC.</p>
+        <p className="muted">No runs yet. The pipeline runs every weekday at 05:17 UTC.</p>
       </section>
     )
   }

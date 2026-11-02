@@ -152,6 +152,28 @@ def test_all_failing_gives_failed(
     assert summary.status == "failed"
 
 
+def test_late_run_uses_previous_close_not_intraday_price(
+    db_session: Session,
+    settings: Settings,
+    fake_sources: dict,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The run is dated 2026-10-30 but started after the US open, so yfinance includes a
+    # still-trading session for that day with an intraday "close" of 123.
+    def history_with_live_session(ticker: str) -> pd.DataFrame:
+        index = pd.bdate_range("2026-08-03", "2026-10-30", tz="America/New_York")
+        closes = [100.0] * (len(index) - 1) + [123.0]
+        return pd.DataFrame({"Close": closes, "Volume": 1000.0}, index=index)
+
+    monkeypatch.setattr(pipeline_run, "fetch_history", history_with_live_session)
+    run_pipeline(Options(tickers=["AAPL"]), settings, db_session, FakeAnalyzer(), now=NOW)
+
+    signal = db_session.scalars(select(Signal)).one()
+    assert float(signal.price_at_signal) == 100.0
+    bar_dates = db_session.scalars(select(PriceBar.date).where(PriceBar.ticker == "AAPL")).all()
+    assert date(2026, 10, 30) not in bar_dates
+
+
 def test_no_news_skips_llm(db_session: Session, settings: Settings, fake_sources: dict) -> None:
     fake_sources["MSFT"] = []
     analyzer = FakeAnalyzer()

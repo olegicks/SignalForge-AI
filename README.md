@@ -50,7 +50,7 @@ It runs entirely on free tiers. A full daily run of 25 tickers costs about **$0.
 | 🛡️ **Validation after the model** | Out-of-range scores and confidences are clamped, unknown sources are dropped, lists are trimmed. |
 | 📈 **Honest track record** | Each signal is scored against the first real close 7 and 30 days later, **and against SPY over the same days**. Hit rates are shown next to an "always bullish" baseline and broken down by confidence bucket. |
 | 🔁 **Day-over-day view** | The overview shows how each score moved since the previous signal (▲2, ▼1, "was bearish") and filters by signal type. |
-| ⏰ **Runs itself** | A GitHub Actions cron job every weekday at 06:00 UTC. It applies migrations, then runs the pipeline. |
+| ⏰ **Runs itself** | A GitHub Actions cron job every weekday at 05:17 UTC. It applies migrations, then runs the pipeline. |
 | 🧱 **Fails gracefully** | Each ticker is isolated. Network calls retry with backoff. A run ends as `success`, `partial` or `failed`. |
 | 💸 **Cost-aware** | Token usage and the estimated cost of every run are logged and shown on the dashboard. Tickers with no news skip the LLM. |
 | ✅ **Tested** | 95 pytest tests against a real Postgres, with yfinance, RSS and OpenAI mocked. CI runs ruff, pytest and the frontend build. |
@@ -59,7 +59,7 @@ It runs entirely on free tiers. A full daily run of 25 tickers costs about **$0.
 
 ```mermaid
 flowchart LR
-    subgraph GH["GitHub Actions · weekdays 06:00 UTC"]
+    subgraph GH["GitHub Actions · weekdays 05:17 UTC"]
         P["pipeline.run"]
     end
     YF["yfinance<br/>prices + Ticker.news"] --> P

@@ -1,7 +1,7 @@
 const STEPS = [
   {
     title: 'Collect',
-    text: 'Every weekday at 06:00 UTC a GitHub Actions job pulls prices from yfinance and recent headlines from Yahoo Finance and Google News RSS.',
+    text: 'Every weekday at 05:17 UTC a GitHub Actions job pulls prices from yfinance and recent headlines from Yahoo Finance and Google News RSS.',
   },
   {
     title: 'Clean',

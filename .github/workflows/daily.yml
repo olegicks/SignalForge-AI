@@ -2,8 +2,9 @@ name: Daily pipeline
 
 on:
   schedule:
-    # 06:00 UTC, Monday to Friday
-    - cron: "0 6 * * 1-5"
+    # 05:17 UTC, Monday to Friday. Off the top of the hour, when GitHub delays
+    # scheduled runs the most. A late run is still safe: prices use completed sessions only.
+    - cron: "17 5 * * 1-5"
   workflow_dispatch:
     inputs:
       tickers:

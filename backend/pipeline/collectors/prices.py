@@ -39,6 +39,19 @@ def fetch_history(ticker: str) -> pd.DataFrame:
     return history
 
 
+def completed_sessions(history: pd.DataFrame, as_of: date) -> pd.DataFrame:
+    """Keep only sessions dated before `as_of` (the run's UTC date).
+
+    The run is scheduled before the US open, but GitHub can start it hours late. Then yfinance
+    includes today's still-trading session, whose "close" is just the latest intraday price.
+    Dropping it keeps `price_at_signal` equal to the previous session's close on every run.
+    """
+    completed = history[[ts.date() < as_of for ts in history.index]]
+    if completed.empty:
+        raise EmptyHistoryError("no completed sessions before the run date")
+    return completed
+
+
 def _pct_change(new: float, old: float) -> float | None:
     if old == 0 or pd.isna(old):
         return None
