@@ -285,6 +285,8 @@ def test_ask_not_configured_returns_503(corpus: Session) -> None:
         ask_module._build_services.cache_clear()
         app.dependency_overrides.clear()
     assert response.status_code == 503
+    # Names the missing setting so the operator knows what to add, without any secret.
+    assert "OPENAI_EMBEDDING_MODEL is not set" in response.json()["detail"]
 
 
 def test_post_is_only_allowed_on_ask(make_client) -> None:

@@ -43,8 +43,10 @@ def get_ask_services() -> AskServices:
         return _build_services()
     except (AskError, EmbeddingError) as exc:
         logger.warning("ask is not configured: %s", exc)
+        # The message only ever names a missing setting (e.g. "OPENAI_MODEL is not set"),
+        # never a value, so it is safe to show and tells the operator what to add.
         raise HTTPException(
-            status_code=503, detail="Ask the news is not configured on this server."
+            status_code=503, detail=f"Ask the news is not configured on this server: {exc}."
         ) from exc
 
 
